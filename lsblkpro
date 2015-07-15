@@ -231,11 +231,14 @@ def main():
     format_options = {}
 
     lookups = args.lookups
+    silent_lookups = []
     if os.path.exists('/dev/disk/zpool') and 'zpool' not in lookups:
         lookups[0:0] = ['zpool']
     if os.path.exists('/dev/disk/by-vdev') and 'by-vdev' not in lookups:
         lookups[0:0] = ['by-vdev']
-    for kind in lookups:
+    if os.path.exists('/dev/disk/by-id') and 'by-id' not in lookups:
+        silent_lookups.append('by-id')
+    for kind in lookups + silent_lookups:
         by_dev_disk(kind, all_devices)
         format_options[kind] = '<'
     labels[1:1] = lookups
@@ -253,8 +256,11 @@ def main():
             zpaths = {k: v[0:-2] for k, v in zpaths.items()}
         for d in devices:
             vdev = d.get('by-vdev')
+            idd = d.get('by-id')
             if vdev and vdev in zpaths:
                 d['MOUNTPOINT'] = zpaths[vdev]
+            elif idd and idd in zpaths:
+                d['MOUNTPOINT'] = zpaths[idd]
     except subprocess.CalledProcessError as ex:
         if ex.output == 'sudo: a password is required\n' and ex.returncode == 1:
             print "WARNING: couldn't get zpool status non-interactively; consider adding this to sudoers:\n"
