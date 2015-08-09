@@ -1,5 +1,9 @@
 #!/usr/bin/env python
 
+# TODO prioritize fields based on term width, mix in `lsscsi`, scsi path, sas
+# addr/phy, everything
+# TODO attach time
+
 import os
 import sys
 import subprocess
