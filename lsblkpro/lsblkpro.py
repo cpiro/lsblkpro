@@ -12,8 +12,8 @@ import re
 import operator
 import logging
 import argparse
-import ctypes
 import itertools
+import operator
 
 import pprint
 pp = pprint.pprint
@@ -161,33 +161,63 @@ def main():
             logging.exception(ex)
             print()
 
-    # labels
-    all_labels = set()
-    for row in itertools.chain(devices.values()): #, partitions.values()):
-        all_labels |= row.keys()
+    rows = sorted(devices.values(), key=operator.itemgetter('name')) +\
+           sorted(partitions.values(), key=operator.itemgetter('name'))
 
     #pp(devices)
     #pp(partitions)
     #pp(labels)
 
-    labels = ['name','MOUNTPOINT','MAJ:MIN','RO','RM','SIZE','OWNER','GROUP','MODE','ALIGNMENT','MIN-IO','OPT-IO','PHY-SEC','LOG-SEC','ROTA','TYPE', 'MODEL', 'STATE', 'LABEL', 'FSTYPE'] # 'UUID' xxx
-    missing_labels = all_labels - set(labels)
+    # labels
+    all_labels = set()
+    for row in rows:
+        all_labels |= row.keys()
 
+    importance = ['name', 'KNAME', 'PKNAME', 'MOUNTPOINT','MAJ:MIN','RO','RM','SIZE','OWNER','GROUP','MODE', 'ALIGNMENT','MIN-IO','OPT-IO','PHY-SEC','LOG-SEC','ROTA','TYPE', 'MODEL', 'STATE', 'LABEL', 'FSTYPE'] # 'UUID' xxx
+    missing_labels = all_labels - set(importance)
 
-    import operator
-    rows = sorted(devices.values(), key=operator.itemgetter('name'))
-    labels, uninteresting = pull_uninteresting(labels, rows)
+    omit = {'MODEL', 'PKNAME'}
 
-    if uninteresting:
+    redundant = set()
+    for candidate, reference in (('KNAME', 'name'), ):
+        if all(row[candidate] == row[reference] for row in rows):
+            redundant.add(candidate)
+
+    def value(row, label):
+        if label in row:
+            return row[label]
+        else:
+            return ''
+
+    labels = []
+    same_for_every = []
+    for label in importance:
+        if label in omit or label in redundant:
+            continue
+        if label in ('SIZE',):
+            labels.append(label)
+            continue
+
+        values_in_this_column = set(value(r, label) for r in rows)
+        if len(rows) == 1 or len(values_in_this_column) == 1:
+            val = values_in_this_column.pop()
+            if len(val):
+                same_for_every.append((label, val))
+            else:
+                omit.append(label)
+        else:
+            labels.append(label)
+
+    #
+    if same_for_every:
         print("Every device has these fields:")
-        lwidth = max(len(l) for l, _ in uninteresting)
-        for l, v in uninteresting:
+        lwidth = max(len(l) for l, _ in same_for_every)
+        for l, v in same_for_every:
             print("  {0:{lwidth}} = {1}".format(l, v, lwidth=lwidth))
         print()
 
     if missing_labels:
-        print("missing labels: {}".format(sorted(missing_labels)))
-
+        print("missing labels: {}\n".format(sorted(missing_labels)))
 
     print_table(labels, rows, [])
 
@@ -228,7 +258,7 @@ def by_dev_disk(kind, results):
 
 def print_table(labels, rows, highlights):
     format_options = {
-        'NAME': '<',
+        'name': '<',
         'zpool': '>',
         'by-vdev': '>',
         'by-id': '<',
@@ -279,22 +309,6 @@ def print_table(labels, rows, highlights):
     print_row({l:l for l in labels}, header)
     for r in rows:
         print_row(r, value)
-
-def pull_uninteresting(labels, rows):
-    interesting = []
-    uninteresting = []
-
-    for l in labels:
-        values_in_this_column = set(r.get(l) for r in rows if r.get(l))
-        if l == 'SIZE':
-            interesting.append(l)
-        elif len(rows) == 1 or len(values_in_this_column) == 1:
-            val = values_in_this_column.pop()
-            if len(val) > 0:
-                uninteresting.append((l, val))
-        else:
-            interesting.append(l)
-    return interesting, uninteresting
 
 def apply_filters(devices, filters):
     for f in filters:
