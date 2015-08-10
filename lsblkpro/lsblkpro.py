@@ -358,6 +358,3 @@ def old_main():
         print()
 
     print_table(labels, rows, highlights)
-
-if __name__ == '__main__':
-    main()

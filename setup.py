@@ -7,6 +7,7 @@ setup(
     entry_points = {
         'console_scripts': [
             'lsblkpro = lsblkpro.lsblkpro:main',
+            'oldlsblkpro = lsblkpro.lsblkpro:old_main',
         ]
     },
 
