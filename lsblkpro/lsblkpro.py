@@ -15,10 +15,20 @@ import argparse
 import itertools
 import operator
 
+import struct
+import fcntl
+import termios
+
 import pprint
 pp = pprint.pprint
 
 from . import data
+
+def terminal_size():
+    h, w, hp, wp = struct.unpack('HHHH',
+                       fcntl.ioctl(0, termios.TIOCGWINSZ,
+                           struct.pack('HHHH', 0, 0, 0, 0)))
+    return h, w
 
 def value_to_str(r, l):
     if l == 'MAJ:MIN':  # align the colons
@@ -59,7 +69,55 @@ def main():
     for row in rows:
         all_labels |= row.keys()
 
-    importance = ['name', 'KNAME', 'PKNAME', 'MOUNTPOINT','MAJ:MIN','RO','RM','SIZE','OWNER','GROUP','MODE', 'ALIGNMENT','MIN-IO','OPT-IO','PHY-SEC','LOG-SEC','ROTA','TYPE', 'MODEL', 'STATE', 'LABEL', 'FSTYPE'] # 'UUID' xxx
+    importance = [
+        'name',
+        'KNAME',
+        'MOUNTPOINT',
+        'MAJ:MIN',
+        'SIZE',
+        'OWNER',
+        'GROUP',
+        'MODE',
+        'ALIGNMENT',
+        'MIN-IO',
+        'OPT-IO',
+        'PHY-SEC',
+        'LOG-SEC',
+        'ROTA',
+        'TYPE',
+        'MODEL',
+        'STATE',
+        'LABEL',
+        'FSTYPE',
+        'RO',
+        'RM',
+    ] # 'UUID' xxx
+
+    sort_order = {key: value for value, key in enumerate([
+        'name',
+        'KNAME',
+        'MOUNTPOINT',
+        'MAJ:MIN',
+        'RO',
+        'RM',
+        'SIZE',
+        'OWNER',
+        'GROUP',
+        'MODE',
+        'ALIGNMENT',
+        'MIN-IO',
+        'OPT-IO',
+        'PHY-SEC',
+        'LOG-SEC',
+        'ROTA',
+        'TYPE',
+        'MODEL',
+        'STATE',
+        'LABEL',
+        'FSTYPE',
+        # 'UUID' xxx
+    ])}
+
     missing_labels = all_labels - set(importance)
 
     omit = {'MODEL', 'PKNAME'}
@@ -75,7 +133,7 @@ def main():
     overflow = []
     NEVER_SAME_FOR_EVERY = ('SIZE',)
     running_width = 0
-    width_limit = 85
+    _, width_limit = terminal_size()
 
     for label in importance:
         if label in omit:
@@ -116,9 +174,16 @@ def main():
     if overflow:
         print("Overflowing labels:\n  {}\n".format(sorted(overflow)))
 
-    print('='*width_limit)
-    print()
 
+    #
+    def order(elt):
+        w, l = elt
+        if l in sort_order:
+            return sort_order[l]
+        else:
+            return 99999
+
+    width_labels = sorted(width_labels, key=order)
     print_table(width_labels, rows, [])
 
 ###
