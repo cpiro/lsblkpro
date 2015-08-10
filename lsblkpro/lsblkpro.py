@@ -89,6 +89,8 @@ def walk_partition(device, part):
 
 def main():
     args = {'all': True}
+
+    # sysfs
     devices = []
     partitions = []
     for device_name in top_level_devices(args):
@@ -100,7 +102,7 @@ def main():
     devices = {d['name']: d for d in devices}
     partitions = {p['name']: p for p in partitions}
 
-
+    # lsblk
     results = lsblk(None, args)
     def merge_row(row, result):
         row.update(result)
@@ -117,9 +119,12 @@ def main():
         else:
             assert False, result # xxx
 
+    # /dev/disk
+
+
+
     pp(devices)
     pp(partitions)
-
 
 ###
 
