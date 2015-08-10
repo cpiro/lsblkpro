@@ -72,8 +72,10 @@ def main():
 
     width_labels = []
     same_for_every = []
+    overflow = []
     NEVER_SAME_FOR_EVERY = ('SIZE',)
     running_width = 0
+    width_limit = 85
 
     for label in importance:
         if label in omit:
@@ -81,11 +83,15 @@ def main():
             continue
 
         values_in_this_column = set(value_to_str(r, label) for r in rows)
-        if (label in NEVER_SAME_FOR_EVERY or
-            not (len(rows) == 1 or len(values_in_this_column) == 1)):
+        if (label in NEVER_SAME_FOR_EVERY or not (len(rows) == 1 or len(values_in_this_column) == 1)):
             width = width_for_column(label, rows)
-            width_labels.append((width, label))
-            running_width += width
+
+            if running_width + width > width_limit:
+                overflow.append(label)
+            else:
+                running_width += width + 1
+                width_labels.append((width, label))
+                pp(running_width)
         else:
             val = values_in_this_column.pop()
             same_for_every.append((label, val))
@@ -106,6 +112,12 @@ def main():
 
     if missing_labels:
         print("Missing labels:\n  {}\n".format(sorted(missing_labels)))
+
+    if overflow:
+        print("Overflowing labels:\n  {}\n".format(sorted(overflow)))
+
+    print('='*width_limit)
+    print()
 
     print_table(width_labels, rows, [])
 
