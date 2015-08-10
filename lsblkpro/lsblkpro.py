@@ -88,6 +88,16 @@ def walk_partition(device, part):
             parse_maj_min(read_sysfs(path, entry), row)
     return row
 
+
+def value_to_str(r, l):
+    if l == 'MAJ:MIN':  # align the colons
+        v = ' ' * (3-r[l].index(':')) + r[l]
+        return v + ' ' * (7-len(v))
+    elif l in r:
+        return str(r[l])
+    else:
+        return ''
+
 def main():
     args = {'all': False}
 
@@ -183,12 +193,6 @@ def main():
         if all(row[candidate] == row[reference] for row in rows):
             redundant.add(candidate)
 
-    def value(row, label):
-        if label in row:
-            return row[label]
-        else:
-            return ''
-
     labels = []
     same_for_every = []
     for label in importance:
@@ -198,7 +202,7 @@ def main():
             labels.append(label)
             continue
 
-        values_in_this_column = set(value(r, label) for r in rows)
+        values_in_this_column = set(value_to_str(r, label) for r in rows)
         if len(rows) == 1 or len(values_in_this_column) == 1:
             val = values_in_this_column.pop()
             if len(val):
@@ -280,19 +284,10 @@ def print_table(labels, rows, highlights):
         else:
             return l
 
-    def value(r, l):
-        if l == 'MAJ:MIN':  # align the colons
-            v = ' ' * (3-r[l].index(':')) + r[l]
-            return v + ' ' * (7-len(v))
-        elif l in r:
-            return str(r[l])
-        else:
-            return '???'
-
     # column widths
     widths = [ max(
                    len( header(l,l) ),
-                   max([len( value(r,l) ) for r in rows]))
+                   max([len( value_to_str(r,l) ) for r in rows]))
                for l in labels]
 
     def print_row(r, xform):
@@ -308,7 +303,7 @@ def print_table(labels, rows, highlights):
 
     print_row({l:l for l in labels}, header)
     for r in rows:
-        print_row(r, value)
+        print_row(r, value_to_str)
 
 def apply_filters(devices, filters):
     for f in filters:
