@@ -51,13 +51,6 @@ def to_bool(zero_or_one):
     assert zero_or_one == 0 or zero_or_one == 1
     return bool(zero_or_one)
 
-def parse_scheduler(data, row):
-    if data == 'none\n':
-        return
-    m = re.findall(r'\[(.*?)\]', data)
-    assert len(m) == 1
-    row['scheduler'] = m[0]
-
 def parse_dev(data, row):
     m = re.match(r'(\d*):(\d*)', data)
     assert m
@@ -66,70 +59,20 @@ def parse_dev(data, row):
 
 def walk_device(device):
     row = {'name': device, 'partitions': []}
-    todo = []
     path = os.path.join('/sys', 'block', device)
     for entry in os.listdir(path):
         if is_partition_dirent(device, entry):
-            row['partitions'].append(walk_partition(device, entry))
+            row['partitions'].append(entry)
         elif entry == 'holders':
             holders = os.listdir(os.path.join('/sys', 'block', device, 'holders'))
             if holders:
                 row['holders'] = holders
-        elif entry == 'queue':
-            walk_queue(device, row)
         elif entry == 'dev':
             parse_dev(read_sysfs(path, entry), row)
-        elif entry in ('removable', 'ro'):
-            row[entry] = to_bool(read_sysfs(path, entry))
         elif entry in ('size',):
             row[entry] = int(read_sysfs(path, entry))
-    #
-    do_blkid(path, row)
 
-
-    return row, todo
-
-def do_blkid(path, row):
-
-    BLKID_SUBLKS_LABEL = (1 << 1)     #  read LABEL from superblock */
-    BLKID_SUBLKS_LABELRAW = (1 << 2)  #  read and define LABEL_RAW result value*/
-    BLKID_SUBLKS_UUID = (1 << 3)      #  read UUID from superblock */
-    BLKID_SUBLKS_UUIDRAW = (1 << 4)   #  read and define UUID_RAW result value */
-    BLKID_SUBLKS_TYPE = (1 << 5)      #  define TYPE result value */
-    BLKID_SUBLKS_SECTYPE = (1 << 6)   #  define compatible fs type (second type) */
-    BLKID_SUBLKS_USAGE = (1 << 7)     #  define USAGE result value */
-    BLKID_SUBLKS_VERSION = (1 << 8)   #  read FS type from superblock */
-    BLKID_SUBLKS_MAGIC = (1 << 9)     #  define SBMAGIC and SBMAGIC_OFFSET */
-    BLKID_SUBLKS_BADCSUM = (1 << 10)  #  allow a bad checksum */
-
-    pr = blkid.blkid_new_probe_from_filename(path)
-    assert pr
-    assert 0 == blkid.blkid_probe_enable_superblocks(pr, 1)
-    assert 0 == blkid.blkid_probe_set_superblocks_flags(pr,
-                                                        BLKID_SUBLKS_LABEL |
-                                                        BLKID_SUBLKS_UUID |
-                                                        BLKID_SUBLKS_TYPE)
-    rv = blkid.blkid_do_safeprobe(pr)
-    assert 0 == rv, rv
-    data = None
-    assert 0 == blkid.blkid_probe_lookup_value(pr, "TYPE", ctypes.byref(data), 0)
-    pp(data)
-    # cxt->fstype = xstrdup(data);
-    #     if (!blkid.blkid_probe_lookup_value(pr, "UUID", &data, NULL))
-    #     cxt->uuid = xstrdup(data);
-    #     if (!blkid.blkid_probe_lookup_value(pr, "LABEL", &data, NULL))
-    #     cxt->label = xstrdup(data);
-    blkid.blkid_free_probe(pr)
-
-def walk_queue(device, row):
-    path = os.path.join('/sys', 'block', device, 'queue')
-    for entry in os.listdir(path):
-        if entry == 'rotational':
-            row[entry] = to_bool(read_sysfs(path, entry))
-        elif entry in ('hw_sector_size', 'logical_block_size', 'minimum_io_size', 'optimal_io_size', 'physical_block_size'):
-            row[entry] = read_sysfs(path, entry)
-        elif entry == 'scheduler':
-            parse_scheduler(read_sysfs(path, entry), row)
+    return row
 
 def walk_partition(device, part):
     row = {'name': part}
@@ -144,12 +87,16 @@ def walk_partition(device, part):
 
 def main():
     args = {'all': False}
-    todo = list(top_level_devices(args))
-    while todo:
-        device = todo.pop(0)
-        row, newtodo = walk_device(device)
-        todo[0:0] = newtodo
-        pp(row)
+    devices = []
+    partitions = []
+    for device_name in top_level_devices(args):
+        row = walk_device(device_name)
+        devices.append(row)
+        for part_name in row['partitions']:
+            partitions.append(walk_partition(device_name, part_name))
+
+    pp(devices)
+    pp(partitions)
 
 ###
 
