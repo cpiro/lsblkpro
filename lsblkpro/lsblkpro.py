@@ -27,15 +27,12 @@ def dev_name_split(device):
 
     return tuple(to_int_maybe(part) for part in re.findall(r'(?:[a-z]+|\d+)', device))
 
-def all_devices(args):
-    def gen():
-        path = os.path.join('/sys', 'block')
-        devices = os.listdir(path)
-        for device in devices:
-            if args['all'] or not re.fullmatch(r'(?:ram\d+|loop\d+)', device):
-                yield device
-
-    return sorted(gen(), key=dev_name_split)
+def top_level_devices(args):
+    path = os.path.join('/sys', 'block')
+    devices = os.listdir(path)
+    for device in devices:
+        if args['all'] or not re.fullmatch(r'(?:ram\d+|loop\d+)', device):
+            yield device
 
 def is_partition_dirent(device, directory):
     if not directory.startswith(device):
@@ -49,16 +46,27 @@ def walk_device(device):
     entries = os.listdir(path)
     for entry in entries:
         if is_partition_dirent(device, entry):
-            row['partitions'].append(entry)
-            todo.append(entry)
+            row['partitions'].append(walk_partition(device, entry))
     return row, todo
+
+def walk_partition(device, part):
+    row = {'name': part}
+    path = os.path.join('/sys', 'block', device, part)
+    entries = os.listdir(path)
+    for entry in entries:
+        if entry == 'holders':
+            holders = os.listdir(os.path.join('/sys', 'block', device, part, 'holders'))
+            if holders:
+                row['holders'] = holders
+    return row
 
 def main():
     args = {'all': False}
-    todo = []
-    for device in all_devices(args):
+    todo = list(top_level_devices(args))
+    while todo:
+        device = todo.pop(0)
         row, newtodo = walk_device(device)
-        todo.extend(newtodo)
+        todo[0:0] = newtodo
         pp(row)
 
 ###
@@ -287,9 +295,9 @@ def old_main():
     results = list(uniq(lsblk(labels, args)))
 
     if args.partitions:
-        all_devices = results
+        top_level_devices = results
     else:
-        all_devices = [d for d in results if d['TYPE'] != 'part' or d['MOUNTPOINT'] != '']
+        top_level_devices = [d for d in results if d['TYPE'] != 'part' or d['MOUNTPOINT'] != '']
 
     format_options = {}
 
@@ -302,13 +310,13 @@ def old_main():
     if os.path.exists('/dev/disk/by-id') and 'by-id' not in lookups:
         silent_lookups.append('by-id')
     for kind in lookups + silent_lookups:
-        by_dev_disk(kind, all_devices)
+        by_dev_disk(kind, top_level_devices)
         format_options[kind] = '<'
     labels[1:1] = lookups
 
-    devices = apply_filters(all_devices, args.filters)
+    devices = apply_filters(top_level_devices, args.filters)
     if not devices:
-        print("no matches among {} devices".format(len(all_devices)))
+        print("no matches among {} devices".format(len(top_level_devices)))
         sys.exit(0)
 
     # punch up with zpool status, if we can get it without prompting for a password
