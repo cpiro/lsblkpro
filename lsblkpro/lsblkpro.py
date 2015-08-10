@@ -3,6 +3,7 @@
 # TODO prioritize fields based on term width, mix in `lsscsi`, scsi path, sas
 # addr/phy, everything
 # TODO attach time
+# xxx package desc should include /sys/block
 
 import os
 import sys
@@ -17,6 +18,37 @@ pp = pprint.pprint
 
 CLI_UTILS_ENCODING = 'utf-8'
 
+def dev_name_split(device):
+    def to_int_maybe(p):
+        try:
+            return int(p)
+        except ValueError:
+            return p
+
+    return tuple(to_int_maybe(part) for part in re.findall(r'(?:[a-z]+|\d+)', device))
+
+def all_devices(args):
+    def gen():
+        path = os.path.join('/sys', 'block')
+        devices = os.listdir(path)
+        for device in devices:
+            if args['all'] or not re.fullmatch(r'(?:ram\d+|loop\d+)', device):
+                yield device
+
+    return sorted(gen(), key=dev_name_split)
+
+def bl(device):
+    path = os.path.join('/sys', 'block', device)
+    stuff = os.listdir(path)
+    pp(stuff)
+
+def main():
+    args = {'all': False}
+    for device in all_devices(args):
+        pass
+
+###
+
 def lsblk(labels, args):
     cmd = ['lsblk']
     if args.all:
@@ -28,6 +60,7 @@ def lsblk(labels, args):
         a = re.findall(r'(.*?)="(.*?)" ?', l)
         d = {k:v for k,v in a}
         results.append(d)
+    pp(results)
     return results
 
 def by_dev_disk(kind, results):
@@ -192,7 +225,7 @@ def find_highlights(devices, highlight):
                 sys.exit(0)
         d['$color'] = color_table[d[highlight]]
 
-def main():
+def old_main():
     if not sys.platform.startswith('linux'):
         logging.error("You're gonna want that Linux") # xxx lsblk avail only
         sys.exit(1)
@@ -231,7 +264,13 @@ def main():
             args.highlight = 'SIZE'
 
     labels = ['NAME','MOUNTPOINT','MAJ:MIN','RO','RM','SIZE','OWNER','GROUP','MODE','ALIGNMENT','MIN-IO','OPT-IO','PHY-SEC','LOG-SEC','ROTA','TYPE', 'MODEL', 'STATE', 'LABEL', 'FSTYPE'] # 'UUID' xxx
-    results = lsblk(labels, args)
+
+    import itertools
+    def uniq(iterable):
+        for k, _ in itertools.groupby(iterable):
+            yield k
+
+    results = list(uniq(lsblk(labels, args)))
 
     if args.partitions:
         all_devices = results
