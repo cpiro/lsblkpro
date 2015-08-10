@@ -18,7 +18,6 @@ import operator
 import pprint
 pp = pprint.pprint
 
-
 from . import data
 
 def value_to_str(r, l):
@@ -35,7 +34,7 @@ def main():
 
     devices, partitions = data.get_data(args)
 
-    rows = sorted(devices.values(), key=operator.itemgetter('name')) +\
+    rows = sorted(devices.values(), key=operator.itemgetter('name')) + \
            sorted(partitions.values(), key=operator.itemgetter('name'))
 
     #pp(devices)
@@ -55,12 +54,14 @@ def main():
     redundant = set()
     for candidate, reference in (('KNAME', 'name'), ):
         if all(row[candidate] == row[reference] for row in rows):
-            redundant.add(candidate)
+            redundant.add((candidate, reference))
+            omit.add(candidate)
 
     labels = []
     same_for_every = []
     for label in importance:
-        if label in omit or label in redundant:
+        if label in omit:
+            pp('skipping {}'.format(label))
             continue
         if label in ('SIZE',):
             labels.append(label)
@@ -69,10 +70,7 @@ def main():
         values_in_this_column = set(value_to_str(r, label) for r in rows)
         if len(rows) == 1 or len(values_in_this_column) == 1:
             val = values_in_this_column.pop()
-            if len(val):
-                same_for_every.append((label, val))
-            else:
-                omit.append(label)
+            same_for_every.append((label, val))
         else:
             labels.append(label)
 
@@ -84,8 +82,14 @@ def main():
             print("  {0:{lwidth}} = {1}".format(l, v, lwidth=lwidth))
         print()
 
+    if redundant:
+        print("Fields that always match:")
+        for c, r in redundant:
+            print("  {} = {}".format(c, r))
+        print()
+
     if missing_labels:
-        print("missing labels: {}\n".format(sorted(missing_labels)))
+        print("Missing labels:\n  {}\n".format(sorted(missing_labels)))
 
     print_table(labels, rows, [])
 
@@ -179,7 +183,6 @@ def apply_filters(devices, filters):
             logging.error("no such key '%s'", lhs)
             sys.exit(0)
     return devices
-
 
 def find_highlights(devices, highlight):
     if highlight is None:
