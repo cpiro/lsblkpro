@@ -12,6 +12,8 @@ import operator
 import logging
 import argparse
 
+print("hi")
+
 def lsblk(labels, args):
     cmd = ['lsblk']
     if args.all:
