@@ -53,14 +53,14 @@ def parse_zpool_status(status):
             continue
     return rv
 
-def dev_name_split(device):
-    def to_int_maybe(p):
-        try:
-            return int(p)
-        except ValueError:
-            return p
-
-    return tuple(to_int_maybe(part) for part in re.findall(r'(?:[a-z]+|\d+)', device))
+# def dev_name_split(device):
+#     def to_int_maybe(p):
+#         try:
+#             return int(p)
+#         except ValueError:
+#             return p
+#
+#     return tuple(to_int_maybe(part) for part in re.findall(r'(?:[a-z]+|\d+)', device))
 
 def top_level_devices(args):
     for device in os.listdir(os.path.join('/sys', 'block')):
@@ -80,9 +80,9 @@ def read_sysfs(path, filename):
     except ValueError:
         return data
 
-def to_bool(zero_or_one):
-    assert zero_or_one == 0 or zero_or_one == 1
-    return bool(zero_or_one)
+# def to_bool(zero_or_one):
+#     assert zero_or_one == 0 or zero_or_one == 1
+#     return bool(zero_or_one)
 
 def parse_maj_min(data, row):
     m = re.match(r'(\d*):(\d*)', data)
