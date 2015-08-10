@@ -72,8 +72,15 @@ def main():
     importance = [
         'name',
         'KNAME',
+        'by-vdev',
+        'zpath',
         'MOUNTPOINT',
         'MAJ:MIN',
+
+        'HCTL', 'PARTFLAGS', 'PARTLABEL', 'RA', 'RAND', 'REV', 'RQ-SIZE', 'SCHED', 'TRAN', 'WSAME', 'by-id', 'by-partlabel', 'by-path',
+
+        #'holders', 'major', 'minor', 'partitions', 'size'
+
         'SIZE',
         'OWNER',
         'GROUP',
@@ -91,31 +98,46 @@ def main():
         'FSTYPE',
         'RO',
         'RM',
-    ] # 'UUID' xxx
+        'DISC-ALN', 'DISC-GRAN', 'DISC-MAX', 'DISC-ZERO',
+        'UUID',
+        'WWN',
+        'SERIAL',
+        'VENDOR',
+        'PARTUUID',
+        'PARTTYPE',
+
+    ]
 
     sort_order = {key: value for value, key in enumerate([
         'name',
         'KNAME',
+        'by-vdev',
+        'zpath',
         'MOUNTPOINT',
         'MAJ:MIN',
-        'RO',
-        'RM',
         'SIZE',
         'OWNER',
         'GROUP',
         'MODE',
-        'ALIGNMENT',
-        'MIN-IO',
-        'OPT-IO',
-        'PHY-SEC',
-        'LOG-SEC',
-        'ROTA',
-        'TYPE',
-        'MODEL',
-        'STATE',
-        'LABEL',
-        'FSTYPE',
-        # 'UUID' xxx
+
+        # 'ALIGNMENT',
+        # 'MIN-IO',
+        # 'OPT-IO',
+        # 'PHY-SEC',
+        # 'LOG-SEC',
+        # 'RO',
+        # 'RM',
+        # 'DISC-ALN', 'DISC-GRAN', 'DISC-MAX', 'DISC-ZERO',
+        # 'ROTA',
+        # 'TYPE',
+        # 'MODEL',
+        # 'STATE',
+        # 'LABEL',
+        # 'FSTYPE',
+        # 'VENDOR',
+        # 'UUID',
+        # 'WWN',
+        # 'SERIAL',
     ])}
 
     missing_labels = all_labels - set(importance)
@@ -181,7 +203,7 @@ def main():
         if l in sort_order:
             return sort_order[l]
         else:
-            return 99999
+            return w + 1000 # shorter ones first
 
     width_labels = sorted(width_labels, key=order)
     print_table(width_labels, rows, [])
