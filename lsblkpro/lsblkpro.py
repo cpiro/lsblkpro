@@ -42,17 +42,24 @@ def is_partition_dirent(device, directory):
         return False
     return os.path.exists(os.path.join('/sys', 'block', device, directory, 'start'))
 
-def bl(device):
+def walk_device(device):
+    row = {'name': device, 'partitions': []}
+    todo = []
     path = os.path.join('/sys', 'block', device)
     entries = os.listdir(path)
     for entry in entries:
-        pp((entry, is_partition_dirent(device, entry)))
+        if is_partition_dirent(device, entry):
+            row['partitions'].append(entry)
+            todo.append(entry)
+    return row, todo
 
 def main():
     args = {'all': False}
+    todo = []
     for device in all_devices(args):
-        bl(device)
-        return
+        row, newtodo = walk_device(device)
+        todo.extend(newtodo)
+        pp(row)
 
 ###
 
