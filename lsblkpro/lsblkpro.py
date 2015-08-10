@@ -75,9 +75,14 @@ def main():
         'by-vdev',
         'zpath',
         'MOUNTPOINT',
+        'HCTL',
         'MAJ:MIN',
+        'TRAN',
 
-        'HCTL', 'PARTFLAGS', 'PARTLABEL', 'RA', 'RAND', 'REV', 'RQ-SIZE', 'SCHED', 'TRAN', 'WSAME', 'by-id', 'by-partlabel', 'by-path',
+        'PARTFLAGS',
+        'PARTLABEL',
+        'RA',
+        'RQ-SIZE',
 
         #'holders', 'major', 'minor', 'partitions', 'size'
 
@@ -87,11 +92,11 @@ def main():
         'MODE',
         'ALIGNMENT',
         'MIN-IO',
-        'OPT-IO',
         'PHY-SEC',
         'LOG-SEC',
-        'ROTA',
         'TYPE',
+        'ROTA',
+
         'MODEL',
         'STATE',
         'LABEL',
@@ -100,12 +105,19 @@ def main():
         'RM',
         'DISC-ALN', 'DISC-GRAN', 'DISC-MAX', 'DISC-ZERO',
         'UUID',
+        'by-id',
+        'by-partlabel',
+        'by-path',
+        'SCHED',
         'WWN',
         'SERIAL',
         'VENDOR',
         'PARTUUID',
         'PARTTYPE',
-
+        'RAND',
+        'REV',
+        'OPT-IO',
+        'WSAME',
     ]
 
     sort_order = {key: value for value, key in enumerate([
@@ -114,11 +126,16 @@ def main():
         'by-vdev',
         'zpath',
         'MOUNTPOINT',
+        'TRAN',
+        'HCTL',
         'MAJ:MIN',
         'SIZE',
         'OWNER',
         'GROUP',
         'MODE',
+        'TYPE',
+        'ROTA',
+
 
         # 'ALIGNMENT',
         # 'MIN-IO',
@@ -128,8 +145,6 @@ def main():
         # 'RO',
         # 'RM',
         # 'DISC-ALN', 'DISC-GRAN', 'DISC-MAX', 'DISC-ZERO',
-        # 'ROTA',
-        # 'TYPE',
         # 'MODEL',
         # 'STATE',
         # 'LABEL',
