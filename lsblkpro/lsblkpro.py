@@ -73,23 +73,20 @@ def main():
     width_labels = []
     same_for_every = []
     widths = []
+    running_width = 0
 
     for label in importance:
         if label in omit:
             pp('skipping {}'.format(label))
             continue
-        if label in ('SIZE',):
-            width = width_for_column(label, rows)
-            width_labels.append((width, label))
-
-            continue
 
         values_in_this_column = set(value_to_str(r, label) for r in rows)
-        if len(rows) == 1 or len(values_in_this_column) == 1:
+        if label not in ('SIZE',) and (len(rows) == 1 or len(values_in_this_column) == 1):
             val = values_in_this_column.pop()
             same_for_every.append((label, val))
         else:
             width = width_for_column(label, rows)
+            running_width += width
             width_labels.append((width, label))
 
     #
