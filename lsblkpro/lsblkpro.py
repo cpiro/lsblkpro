@@ -37,15 +37,22 @@ def all_devices(args):
 
     return sorted(gen(), key=dev_name_split)
 
+def is_partition_dirent(device, directory):
+    if not directory.startswith(device):
+        return False
+    return os.path.exists(os.path.join('/sys', 'block', device, directory, 'start'))
+
 def bl(device):
     path = os.path.join('/sys', 'block', device)
-    stuff = os.listdir(path)
-    pp(stuff)
+    entries = os.listdir(path)
+    for entry in entries:
+        pp((entry, is_partition_dirent(device, entry)))
 
 def main():
     args = {'all': False}
     for device in all_devices(args):
-        pass
+        bl(device)
+        return
 
 ###
 
