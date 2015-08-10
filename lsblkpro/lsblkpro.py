@@ -86,7 +86,7 @@ def walk_partition(device, part):
     return row
 
 def main():
-    args = {'all': False}
+    args = {'all': True}
     devices = []
     partitions = []
     for device_name in top_level_devices(args):
@@ -95,14 +95,26 @@ def main():
         for part_name in row['partitions']:
             partitions.append(walk_partition(device_name, part_name))
 
+    devices = {d['name']: d for d in devices}
+    partitions = {p['name']: p for p in partitions}
+
     pp(devices)
     pp(partitions)
+
+    results = lsblk(None, args)
+    for result in results:
+        if result['NAME'] in devices:
+            pass
+        elif result['NAME'] in partitions:
+            pass
+        else:
+            assert False, result # xxx
 
 ###
 
 def lsblk(labels, args):
     cmd = ['lsblk']
-    if args.all:
+    if args['all']:
         cmd.append('--all')
     cmd.extend(['-P', '-O'])
     out = subprocess.check_output(cmd)
@@ -111,7 +123,6 @@ def lsblk(labels, args):
         a = re.findall(r'(.*?)="(.*?)" ?', l)
         d = {k:v for k,v in a}
         results.append(d)
-    pp(results)
     return results
 
 def by_dev_disk(kind, results):
