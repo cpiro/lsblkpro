@@ -120,8 +120,24 @@ def main():
             assert False, result # xxx
 
     # /dev/disk
+    for kind in os.listdir(os.path.join('/dev', 'disk')):
+        path = os.path.join('/dev', 'disk', kind)
+        for fn in os.listdir(path):
+            dev_or_part = os.path.basename(os.readlink(os.path.join(path, fn)))
 
+            if dev_or_part in devices:
+                row = devices[dev_or_part]
+            elif dev_or_part in partitions:
+                row = partitions[dev_or_part]
+            else:
+                assert False, (kind, fn, dev_or_part)
 
+            if kind == 'by-partuuid':
+                assert row['PARTUUID'] == fn
+            elif kind == 'by-uuid':
+                assert row['UUID'] == fn
+            else:
+                row[kind] = fn
 
     pp(devices)
     pp(partitions)
