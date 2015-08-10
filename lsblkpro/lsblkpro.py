@@ -190,7 +190,7 @@ def main():
             val = values_in_this_column.pop()
             same_for_every.append((label, val))
 
-    # print
+    # pre-print
     if same_for_every:
         print("Every device has these fields:")
         lwidth = max(len(l) for l, _ in same_for_every)
@@ -210,8 +210,7 @@ def main():
     if overflow:
         print("Overflowing labels:\n  {}\n".format(sorted(overflow)))
 
-
-    #
+    # print
     def order(elt):
         w, l = elt
         if l in sort_order:
@@ -221,6 +220,7 @@ def main():
 
     width_labels = sorted(width_labels, key=order)
     print_table(width_labels, rows, [])
+
 
 ###
 
