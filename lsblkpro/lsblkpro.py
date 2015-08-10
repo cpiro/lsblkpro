@@ -28,9 +28,7 @@ def dev_name_split(device):
     return tuple(to_int_maybe(part) for part in re.findall(r'(?:[a-z]+|\d+)', device))
 
 def top_level_devices(args):
-    path = os.path.join('/sys', 'block')
-    devices = os.listdir(path)
-    for device in devices:
+    for device in os.listdir(os.path.join('/sys', 'block')):
         if args['all'] or not re.fullmatch(r'(?:ram\d+|loop\d+)', device):
             yield device
 
@@ -39,15 +37,38 @@ def is_partition_dirent(device, directory):
         return False
     return os.path.exists(os.path.join('/sys', 'block', device, directory, 'start'))
 
+def read_sysfs(path, filename):
+    with open(os.path.join(path, filename), 'r') as f:
+        data = f.read()
+    try:
+        return int(data)
+    except ValueError:
+        return data
+
+def to_bool(zero_or_one):
+    assert zero_or_one == 0 or zero_or_one == 1
+    return bool(zero_or_one)
+
 def walk_device(device):
     row = {'name': device, 'partitions': []}
     todo = []
-    path = os.path.join('/sys', 'block', device)
-    entries = os.listdir(path)
-    for entry in entries:
+    for entry in os.listdir(os.path.join('/sys', 'block', device)):
         if is_partition_dirent(device, entry):
             row['partitions'].append(walk_partition(device, entry))
+        elif entry == 'holders':
+            holders = os.listdir(os.path.join('/sys', 'block', device, 'holders'))
+            if holders:
+                row['holders'] = holders
+        elif entry == 'queue':
+            walk_queue(device, row)
+
     return row, todo
+
+def walk_queue(device, row):
+    path = os.path.join('/sys', 'block', device, 'queue')
+    for entry in os.listdir(path):
+        if entry == 'rotational':
+            row[entry] = to_bool(read_sysfs(path, entry))
 
 def walk_partition(device, part):
     row = {'name': part}
