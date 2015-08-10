@@ -55,10 +55,15 @@ def header(_, l):
 def main():
     args = {'all': False}
 
+    # xxx pull in long descriptions from lsblk, somehow
+    # xxx coalesce zpath+MOUNTPOINT
+
     devices, partitions = data.get_data(args)
+    # xxx optionally not filter zpool drive partitions
+    not_zpool_partitions = {k: p for k, p in partitions.items() if not devices[p['PKNAME']].get('zpath') }
 
     rows = sorted(devices.values(), key=operator.itemgetter('name')) + \
-           sorted(partitions.values(), key=operator.itemgetter('name'))
+           sorted(not_zpool_partitions.values(), key=operator.itemgetter('name'))
 
     #pp(devices)
     #pp(partitions)
@@ -70,6 +75,7 @@ def main():
         all_labels |= row.keys()
 
     importance = [
+        #'holders', 'major', 'minor', 'partitions', 'size'
         'name',
         'KNAME',
         'by-vdev',
@@ -78,14 +84,8 @@ def main():
         'HCTL',
         'MAJ:MIN',
         'TRAN',
-
-        'PARTFLAGS',
-        'PARTLABEL',
         'RA',
         'RQ-SIZE',
-
-        #'holders', 'major', 'minor', 'partitions', 'size'
-
         'SIZE',
         'OWNER',
         'GROUP',
@@ -96,24 +96,25 @@ def main():
         'LOG-SEC',
         'TYPE',
         'ROTA',
-
         'MODEL',
         'STATE',
         'LABEL',
-        'FSTYPE',
         'RO',
         'RM',
-        'DISC-ALN', 'DISC-GRAN', 'DISC-MAX', 'DISC-ZERO',
         'UUID',
-        'by-id',
         'by-partlabel',
         'by-path',
-        'SCHED',
-        'WWN',
+        'by-id',
         'SERIAL',
-        'VENDOR',
+        'FSTYPE',
+        'WWN',
         'PARTUUID',
         'PARTTYPE',
+        'PARTFLAGS',
+        'PARTLABEL',
+        'DISC-ALN', 'DISC-GRAN', 'DISC-MAX', 'DISC-ZERO',
+        'SCHED',
+        'VENDOR',
         'RAND',
         'REV',
         'OPT-IO',
@@ -174,7 +175,6 @@ def main():
 
     for label in importance:
         if label in omit:
-            pp('skipping {}'.format(label))
             continue
 
         values_in_this_column = set(value_to_str(r, label) for r in rows)
@@ -186,12 +186,11 @@ def main():
             else:
                 running_width += width + 1
                 width_labels.append((width, label))
-                pp(running_width)
         else:
             val = values_in_this_column.pop()
             same_for_every.append((label, val))
 
-    #
+    # print
     if same_for_every:
         print("Every device has these fields:")
         lwidth = max(len(l) for l, _ in same_for_every)
