@@ -12,6 +12,11 @@ import operator
 import logging
 import argparse
 
+import pprint
+pp = pprint.pprint
+
+CLI_UTILS_ENCODING = 'utf-8'
+
 def lsblk(labels, args):
     cmd = ['lsblk']
     if args.all:
@@ -19,7 +24,7 @@ def lsblk(labels, args):
     cmd.extend(['-P', '-o', ','.join(labels)])
     out = subprocess.check_output(cmd)
     results = []
-    for l in out.decode('utf-8').splitlines():
+    for l in out.decode(CLI_UTILS_ENCODING).splitlines():
         a = re.findall(r'(.*?)="(.*?)" ?', l)
         d = {k:v for k,v in a}
         results.append(d)
@@ -138,7 +143,7 @@ def apply_filters(devices, filters):
 def parse_zpool_status(status):
     config = False
     rv = {}
-    for l in status.decode('utf-8').splitlines():
+    for l in status.decode(CLI_UTILS_ENCODING).splitlines():
         if config:
             if l == '':
                 config = False
@@ -189,7 +194,7 @@ def find_highlights(devices, highlight):
 
 def main():
     if not sys.platform.startswith('linux'):
-        logging.error("You're gonna want that Linux")
+        logging.error("You're gonna want that Linux") # xxx lsblk avail only
         sys.exit(1)
 
     parser = argparse.ArgumentParser()
@@ -225,8 +230,9 @@ def main():
         if args.highlight is None:
             args.highlight = 'SIZE'
 
-    labels = ['NAME','MOUNTPOINT','MAJ:MIN','RO','RM','SIZE','OWNER','GROUP','MODE','ALIGNMENT','MIN-IO','OPT-IO','PHY-SEC','LOG-SEC','ROTA','TYPE', 'MODEL', 'STATE', 'LABEL', 'UUID', 'FSTYPE']
+    labels = ['NAME','MOUNTPOINT','MAJ:MIN','RO','RM','SIZE','OWNER','GROUP','MODE','ALIGNMENT','MIN-IO','OPT-IO','PHY-SEC','LOG-SEC','ROTA','TYPE', 'MODEL', 'STATE', 'LABEL', 'FSTYPE'] # 'UUID' xxx
     results = lsblk(labels, args)
+
     if args.partitions:
         all_devices = results
     else:
