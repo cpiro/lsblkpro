@@ -13,6 +13,7 @@ import operator
 import logging
 import argparse
 import ctypes
+import itertools
 
 import pprint
 pp = pprint.pprint
@@ -88,7 +89,7 @@ def walk_partition(device, part):
     return row
 
 def main():
-    args = {'all': True}
+    args = {'all': False}
 
     # sysfs
     devices = []
@@ -108,7 +109,7 @@ def main():
         row.update(result)
         del row['NAME']
         assert '{}:{}'.format(row['major'], row['minor']) == row['MAJ:MIN']
-        del row['MAJ:MIN']
+        #del row['MAJ:MIN']
 
     for result in results:
         name = result['NAME']
@@ -160,8 +161,35 @@ def main():
             logging.exception(ex)
             print()
 
-    pp(devices)
-    pp(partitions)
+    # labels
+    all_labels = set()
+    for row in itertools.chain(devices.values()): #, partitions.values()):
+        all_labels |= row.keys()
+
+    #pp(devices)
+    #pp(partitions)
+    #pp(labels)
+
+    labels = ['name','MOUNTPOINT','MAJ:MIN','RO','RM','SIZE','OWNER','GROUP','MODE','ALIGNMENT','MIN-IO','OPT-IO','PHY-SEC','LOG-SEC','ROTA','TYPE', 'MODEL', 'STATE', 'LABEL', 'FSTYPE'] # 'UUID' xxx
+    missing_labels = all_labels - set(labels)
+
+
+    import operator
+    rows = sorted(devices.values(), key=operator.itemgetter('name'))
+    labels, uninteresting = pull_uninteresting(labels, rows)
+
+    if uninteresting:
+        print("Every device has these fields:")
+        lwidth = max(len(l) for l, _ in uninteresting)
+        for l, v in uninteresting:
+            print("  {0:{lwidth}} = {1}".format(l, v, lwidth=lwidth))
+        print()
+
+    if missing_labels:
+        print("missing labels: {}".format(sorted(missing_labels)))
+
+
+    print_table(labels, rows, [])
 
 ###
 
@@ -226,8 +254,10 @@ def print_table(labels, rows, highlights):
         if l == 'MAJ:MIN':  # align the colons
             v = ' ' * (3-r[l].index(':')) + r[l]
             return v + ' ' * (7-len(v))
+        elif l in r:
+            return str(r[l])
         else:
-            return r[l]
+            return '???'
 
     # column widths
     widths = [ max(
@@ -253,12 +283,13 @@ def print_table(labels, rows, highlights):
 def pull_uninteresting(labels, rows):
     interesting = []
     uninteresting = []
+
     for l in labels:
-        col = set(r[l] for r in rows if r['TYPE'] != 'part' or l == 'MOUNTPOINT')
+        values_in_this_column = set(r.get(l) for r in rows if r.get(l))
         if l == 'SIZE':
             interesting.append(l)
-        elif len(rows) == 1 or len(col) == 1:
-            val = col.pop()
+        elif len(rows) == 1 or len(values_in_this_column) == 1:
+            val = values_in_this_column.pop()
             if len(val) > 0:
                 uninteresting.append((l, val))
         else:
@@ -342,7 +373,7 @@ def find_highlights(devices, highlight):
 
 def old_main():
     if not sys.platform.startswith('linux'):
-        logging.error("You're gonna want that Linux") # xxx lsblk avail only
+        logging.error("You're gonna want that Linux")
         sys.exit(1)
 
     parser = argparse.ArgumentParser()
