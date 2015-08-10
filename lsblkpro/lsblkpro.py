@@ -51,7 +51,7 @@ def to_bool(zero_or_one):
     assert zero_or_one == 0 or zero_or_one == 1
     return bool(zero_or_one)
 
-def parse_dev(data, row):
+def parse_maj_min(data, row):
     m = re.match(r'(\d*):(\d*)', data)
     assert m
     row['major'] = int(m.group(1))
@@ -68,7 +68,7 @@ def walk_device(device):
             if holders:
                 row['holders'] = holders
         elif entry == 'dev':
-            parse_dev(read_sysfs(path, entry), row)
+            parse_maj_min(read_sysfs(path, entry), row)
         elif entry in ('size',):
             row[entry] = int(read_sysfs(path, entry))
 
@@ -83,6 +83,8 @@ def walk_partition(device, part):
             holders = os.listdir(os.path.join('/sys', 'block', device, part, 'holders'))
             if holders:
                 row['holders'] = holders
+        elif entry == 'dev':
+            parse_maj_min(read_sysfs(path, entry), row)
     return row
 
 def main():
@@ -98,17 +100,26 @@ def main():
     devices = {d['name']: d for d in devices}
     partitions = {p['name']: p for p in partitions}
 
+
+    results = lsblk(None, args)
+    def merge_row(row, result):
+        row.update(result)
+        del row['NAME']
+        assert '{}:{}'.format(row['major'], row['minor']) == row['MAJ:MIN']
+        del row['MAJ:MIN']
+
+    for result in results:
+        name = result['NAME']
+        if name in devices:
+            merge_row(devices[name], result)
+        elif name in partitions:
+            merge_row(partitions[name], result)
+        else:
+            assert False, result # xxx
+
     pp(devices)
     pp(partitions)
 
-    results = lsblk(None, args)
-    for result in results:
-        if result['NAME'] in devices:
-            pass
-        elif result['NAME'] in partitions:
-            pass
-        else:
-            assert False, result # xxx
 
 ###
 
