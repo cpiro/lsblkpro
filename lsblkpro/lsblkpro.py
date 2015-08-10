@@ -64,11 +64,22 @@ def walk_device(device):
 
     return row, todo
 
+def parse_scheduler(data, row):
+    if data == 'none\n':
+        return
+    m = re.findall(r'\[(.*?)\]', data)
+    assert len(m) == 1
+    row['scheduler'] = m[0]
+
 def walk_queue(device, row):
     path = os.path.join('/sys', 'block', device, 'queue')
     for entry in os.listdir(path):
         if entry == 'rotational':
             row[entry] = to_bool(read_sysfs(path, entry))
+        elif entry in ('hw_sector_size', 'logical_block_size', 'minimum_io_size', 'optimal_io_size', 'physical_block_size'):
+            row[entry] = read_sysfs(path, entry)
+        elif entry == 'scheduler':
+            parse_scheduler(read_sysfs(path, entry), row)
 
 def walk_partition(device, part):
     row = {'name': part}
