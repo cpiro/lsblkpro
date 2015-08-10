@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3.4
 
 # TODO prioritize fields based on term width, mix in `lsscsi`, scsi path, sas
 # addr/phy, everything
@@ -12,8 +12,6 @@ import operator
 import logging
 import argparse
 
-print("hi")
-
 def lsblk(labels, args):
     cmd = ['lsblk']
     if args.all:
@@ -21,7 +19,7 @@ def lsblk(labels, args):
     cmd.extend(['-P', '-o', ','.join(labels)])
     out = subprocess.check_output(cmd)
     results = []
-    for l in out.splitlines():
+    for l in out.decode('utf-8').splitlines():
         a = re.findall(r'(.*?)="(.*?)" ?', l)
         d = {k:v for k,v in a}
         results.append(d)
@@ -93,7 +91,7 @@ def print_table(labels, rows, highlights):
         if color is not None:
             line = color + line + '\033[0m'
 
-        print line
+        print(line)
 
     print_row({l:l for l in labels}, header)
     for r in rows:
@@ -140,7 +138,7 @@ def apply_filters(devices, filters):
 def parse_zpool_status(status):
     config = False
     rv = {}
-    for l in status.splitlines():
+    for l in status.decode('utf-8').splitlines():
         if config:
             if l == '':
                 config = False
@@ -149,7 +147,7 @@ def parse_zpool_status(status):
             l = l.lstrip('\t')
             pos = len(l) - len(l.lstrip(' '))
             assert pos % 2 == 0
-            pos /= 2
+            pos //= 2
             part = l.lstrip(' ').split()[0]
             if part == 'spares' or (len(path) > 1 and path[1] == 'spares'):
                 pos += 1
@@ -251,7 +249,7 @@ def main():
 
     devices = apply_filters(all_devices, args.filters)
     if not devices:
-        print "no matches among {} devices".format(len(all_devices))
+        print("no matches among {} devices".format(len(all_devices)))
         sys.exit(0)
 
     # punch up with zpool status, if we can get it without prompting for a password
@@ -269,11 +267,11 @@ def main():
                 d['MOUNTPOINT'] = zpaths[idd]
     except subprocess.CalledProcessError as ex:
         if ex.output == 'sudo: a password is required\n' and ex.returncode == 1:
-            print "WARNING: couldn't get zpool status non-interactively; consider adding this to sudoers:\n"
-            print "    {} ALL=NOPASSWD: /sbin/zpool status\n".format(os.environ['USER'])
+            print("WARNING: couldn't get zpool status non-interactively; consider adding this to sudoers:\n")
+            print("    {} ALL=NOPASSWD: /sbin/zpool status\n".format(os.environ['USER']))
         else:
             logging.exception(ex)
-            print
+            print()
 
     highlights = find_highlights(devices, args.highlight)
 
@@ -286,11 +284,11 @@ def main():
     labels, uninteresting = pull_uninteresting(labels, rows)
 
     if uninteresting:
-        print "Every device has these fields:"
+        print("Every device has these fields:")
         lwidth = max(len(l) for l, _ in uninteresting)
         for l, v in uninteresting:
-            print "  {0:{lwidth}} = {1}".format(l, v, lwidth=lwidth)
-        print
+            print("  {0:{lwidth}} = {1}".format(l, v, lwidth=lwidth))
+        print()
 
     print_table(labels, rows, highlights)
 
