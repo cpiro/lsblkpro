@@ -29,6 +29,19 @@ def value_to_str(r, l):
     else:
         return ''
 
+def width_for_column(label, rows):
+    return max(
+        len(header(label, label)),
+        max(len(value_to_str(row,label)) for row in rows)
+    )
+
+def header(_, l):
+    if l.startswith('by-'):
+        return l[3:]
+    else:
+        return l
+
+
 def main():
     args = {'all': False}
 
@@ -57,14 +70,18 @@ def main():
             redundant.add((candidate, reference))
             omit.add(candidate)
 
-    labels = []
+    width_labels = []
     same_for_every = []
+    widths = []
+
     for label in importance:
         if label in omit:
             pp('skipping {}'.format(label))
             continue
         if label in ('SIZE',):
-            labels.append(label)
+            width = width_for_column(label, rows)
+            width_labels.append((width, label))
+
             continue
 
         values_in_this_column = set(value_to_str(r, label) for r in rows)
@@ -72,7 +89,8 @@ def main():
             val = values_in_this_column.pop()
             same_for_every.append((label, val))
         else:
-            labels.append(label)
+            width = width_for_column(label, rows)
+            width_labels.append((width, label))
 
     #
     if same_for_every:
@@ -91,7 +109,7 @@ def main():
     if missing_labels:
         print("Missing labels:\n  {}\n".format(sorted(missing_labels)))
 
-    print_table(labels, rows, [])
+    print_table(width_labels, rows, [])
 
 ###
 
@@ -116,7 +134,7 @@ def by_dev_disk(kind, results):
     for r in results:
         r[kind] = mapp.get(r['NAME'], '')
 
-def print_table(labels, rows, highlights):
+def print_table(width_labels, rows, highlights):
     format_options = {
         'name': '<',
         'zpool': '>',
@@ -134,21 +152,9 @@ def print_table(labels, rows, highlights):
             fmt = '>' + str(w)
         return fmt
 
-    def header(_, l):
-        if l.startswith('by-'):
-            return l[3:]
-        else:
-            return l
-
-    # column widths
-    widths = [ max(
-                   len( header(l,l) ),
-                   max([len( value_to_str(r,l) ) for r in rows]))
-               for l in labels]
-
     def print_row(r, xform):
         cells = ("{0:{fmt}}".format(xform(r,l), fmt=format(l,w))
-                 for l, w in zip(labels, widths))
+                 for w, l in width_labels)
         line = ' '.join(cells)
 
         color = r.get('$color')
@@ -157,7 +163,7 @@ def print_table(labels, rows, highlights):
 
         print(line)
 
-    print_row({l:l for l in labels}, header)
+    print_row({l: l for w, l in width_labels}, header)
     for r in rows:
         print_row(r, value_to_str)
 
