@@ -139,6 +139,27 @@ def main():
             else:
                 row[kind] = fn
 
+    # punch up with zpool status, if we can get it without prompting for a password
+    try:
+        zpool_status = subprocess.check_output(['sudo', '-n', 'zpool', 'status'], stderr=subprocess.STDOUT)
+        zpaths = parse_zpool_status(zpool_status)
+        if all(v.endswith('-0') for v in zpaths.values()):
+            zpaths = {k: v[0:-2] for k, v in zpaths.items()}
+        for dev in devices.values():
+            vdev = dev.get('by-vdev')
+            idd = dev.get('by-id')
+            if vdev and vdev in zpaths:
+                dev['zpath'] = zpaths[vdev]
+            elif idd and idd in zpaths:
+                dev['zpath'] = zpaths[idd]
+    except subprocess.CalledProcessError as ex:
+        if ex.output == 'sudo: a password is required\n' and ex.returncode == 1:
+            print("WARNING: couldn't get zpool status non-interactively; consider adding this to sudoers:\n")
+            print("    {} ALL=NOPASSWD: /sbin/zpool status\n".format(os.environ['USER']))
+        else:
+            logging.exception(ex)
+            print()
+
     pp(devices)
     pp(partitions)
 
