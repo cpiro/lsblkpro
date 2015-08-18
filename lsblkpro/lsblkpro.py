@@ -163,6 +163,7 @@ def dev_name_split(device):
 
 def apply_filters(rows, args):
     filter_log = []
+    # xxx allow relative by parsing sizes
     for f in args.filters:
         if '=~' in f:
             lhs, rhs = f.split('=~', 1)
@@ -383,10 +384,10 @@ def main():
 
     missing_labels = all_labels - set(IMPORTANCE) - omit
     if missing_labels:
-        print("Missing labels:\n  {}\n".format(sorted(missing_labels)))
+        print("Missing labels:\n  {}\n".format(', '.join(sorted(missing_labels))))
 
     if overflow:
-        print("Overflowing labels:\n  {}\n".format(sorted(overflow)))
+        print("Overflowing labels:\n  {}\n".format(', '.join(sorted(overflow))))
 
     if missing_from_lsblk:
         print("Present in /sys/block/*/* but not in `lsblk`:\n  {}\n".format(', '.join(sorted(missing_from_lsblk, key=dev_name_split))))
