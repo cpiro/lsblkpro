@@ -80,7 +80,7 @@ SORT_ORDER = {key: value for value, key in enumerate([
     'by-vdev',
     'location',
 
-        'name',
+    'name',
     'KNAME',
     'zpath',
     'MOUNTPOINT',
@@ -130,7 +130,7 @@ def value_to_str(r, l):
 def width_for_column(label, rows):
     return max(
         len(header(label, label)),
-        max(len(value_to_str(row,label)) for row in rows)
+        max(len(value_to_str(row, label)) for row in rows)
     )
 
 def header(_, l, width=None):
