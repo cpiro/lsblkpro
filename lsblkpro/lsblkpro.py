@@ -24,9 +24,9 @@ pp = pprint.pprint
 
 from . import data
 
-ALWAYS_INTERESTING = frozenset('SIZE')
+always_interesting = set('SIZE')
 
-IMPORTANCE = [
+importance = [
     'displayname',
     'location',
 
@@ -183,12 +183,14 @@ def apply_filters(rows, args):
 
     return rows, filter_log
 
-def figure_out_labels(rows):
+def figure_out_labels(rows, args):
     omit = {
         'PKNAME', 'name', 'zpath', 'MOUNTPOINT', 'TYPE', 'by-vdev', 'holders', 'partitions', # used by munge
         'major', 'minor',  'size', # xxx
         'MODEL', # boring
     }
+
+    omit.update(args.exclude)
 
     every_device_has = []
     for candidate, reference in (('KNAME', 'name'), ):
@@ -202,12 +204,17 @@ def figure_out_labels(rows):
     _, width_limit = terminal_size()
     width_limit -= 1
 
-    for label in IMPORTANCE:
+    for label in args.include:
+        importance.remove(label)
+        always_interesting.add(label)
+    importance[2:1+len(args.include)] = args.include
+
+    for label in importance:
         if label in omit:
             continue
 
         values_in_this_column = set(value_to_str(r, label) for r in rows)
-        if (label in ALWAYS_INTERESTING or
+        if (label in always_interesting or
             not (len(rows) == 1 or len(values_in_this_column) == 1)):
             width = width_for_column(label, rows)
 
@@ -321,13 +328,17 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-d", "--only-devices", action='store_true',
                         help="show only devices (not partitions)")
+    parser.add_argument("-i", "--include", action='append', dest='include', default=[],
+                        help="include these fields in the output")
+    parser.add_argument("-e", "--exclude", action='append', dest='exclude', default=[],
+                        help="exclude these fields from the output")
     # xxx expose field names that aren't labels
     # xxx allow 'size' but not 'SIZE' (which is lsblk's string)
     parser.add_argument("-x", "--sort", action='append', dest='sorts', default=[],
                         help="sort devices by field(s)")
     parser.add_argument("-w", "--where", action='append', dest='filters', default=[],
                         help="filters e.g. NAME=sdc, vdev=a4")
-    parser.add_argument("-i", "--highlight",
+    parser.add_argument("-g", "--highlight",
                         help="highlight entries by a field")
     parser.add_argument("-a", "--all", action='store_true',
                         help="include ram* and loop* devices")
@@ -360,7 +371,7 @@ def main():
     munge_highlights(rows, args.highlight)
 
     # figure out labels
-    width_label_pairs, every_device_has, omit, overflow = figure_out_labels(rows)
+    width_label_pairs, every_device_has, omit, overflow = figure_out_labels(rows, args)
 
     # pre-print
     if filter_log:
@@ -376,12 +387,12 @@ def main():
             print("  {0:{lwidth}} = {1}".format(l, v, lwidth=lwidth))
         print()
 
-    # labels in `rows` not in IMPORTANCE or omit
+    # labels in `rows` not in importance or omit
     all_labels = set()
     for row in rows:  # victoresque
         all_labels |= row.keys()
 
-    missing_labels = all_labels - set(IMPORTANCE) - omit
+    missing_labels = all_labels - set(importance) - omit
     if missing_labels:
         print("Missing labels:\n  {}\n".format(', '.join(sorted(missing_labels))))
 
