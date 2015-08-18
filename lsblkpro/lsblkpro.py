@@ -223,7 +223,7 @@ def munge(rows, devices, partitions):
             row['FSTYPE'] = ''
         row['location'] = location_for(row)
 
-def print_table(width_label_pairs, rows, highlights):
+def print_table(width_label_pairs, rows):
     format_options = {
         'displayname': '<',
         'location': '<',
@@ -311,7 +311,7 @@ def main():
             return w + 1000 # shorter ones first
 
     width_label_pairs.sort(key=column_order)
-    print_table(width_label_pairs, rows, [])
+    print_table(width_label_pairs, rows)
 
 ###
 
