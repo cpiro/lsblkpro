@@ -24,6 +24,92 @@ pp = pprint.pprint
 
 from . import data
 
+IMPORTANCE = [
+    'displayname',
+    'location',
+
+        'name',
+    'KNAME',
+    'by-vdev',
+    'zpath',
+    'MOUNTPOINT',
+    'SIZE',
+    'FSTYPE',
+    'HCTL',
+    'MAJ:MIN',
+    'TRAN',
+    'RA',
+    'RQ-SIZE',
+    'OWNER',
+    'GROUP',
+    'MODE',
+    'ALIGNMENT',
+    'OPT-IO',
+    'TYPE',
+    'ROTA',
+    'MODEL',
+    'RO',
+    'RM',
+    'by-partlabel',
+    'by-path',
+    'by-id',
+    'UUID',
+    'SERIAL',
+    'MIN-IO',
+    'PHY-SEC',
+    'LOG-SEC',
+    'WWN',
+    'PARTUUID',
+    'PARTTYPE',
+    'PARTLABEL',
+    'DISC-ALN', 'DISC-GRAN', 'DISC-MAX', 'DISC-ZERO',
+    'STATE',
+    'PARTFLAGS',
+    'LABEL',
+    'SCHED',
+    'VENDOR',
+    'RAND',
+    'REV',
+    'WSAME',
+]
+
+SORT_ORDER = {key: value for value, key in enumerate([
+    'displayname',
+    'by-vdev',
+    'location',
+
+        'name',
+    'KNAME',
+    'zpath',
+    'MOUNTPOINT',
+    'FSTYPE',
+    'SIZE',
+    'TRAN',
+    'HCTL',
+    'MAJ:MIN',
+    'OWNER',
+    'GROUP',
+    'MODE',
+    'TYPE',
+    'ROTA',
+    # 'ALIGNMENT',
+    # 'MIN-IO',
+    # 'OPT-IO',
+    # 'PHY-SEC',
+    # 'LOG-SEC',
+    # 'RO',
+    # 'RM',
+    # 'DISC-ALN', 'DISC-GRAN', 'DISC-MAX', 'DISC-ZERO',
+    # 'MODEL',
+    # 'STATE',
+    # 'LABEL',
+    # 'FSTYPE',
+    # 'VENDOR',
+    # 'UUID',
+    # 'WWN',
+    # 'SERIAL',
+    ])}
+
 def terminal_size():
     h, w, hp, wp = struct.unpack('HHHH',
                        fcntl.ioctl(0, termios.TIOCGWINSZ,
@@ -74,106 +160,10 @@ def main():
             assert part['PKNAME'] == device['name']
             rows.append(part)
 
-#    rows =  + \
-#           sorted(not_zpool_partitions.values(), key=operator.itemgetter('name'))
-
-    #pp(devices)
-    #pp(partitions)
-    #pp(labels)
-
     # labels
     all_labels = set()
     for row in rows:
         all_labels |= row.keys()
-
-    importance = [
-        #'holders', 'major', 'minor', 'partitions', 'size'
-        'displayname',
-        'location',
-
-        'name',
-        'KNAME',
-        'by-vdev',
-        'zpath',
-        'MOUNTPOINT',
-        'SIZE',
-        'FSTYPE',
-        'HCTL',
-        'MAJ:MIN',
-        'TRAN',
-        'RA',
-        'RQ-SIZE',
-        'OWNER',
-        'GROUP',
-        'MODE',
-        'ALIGNMENT',
-        'OPT-IO',
-        'TYPE',
-        'ROTA',
-        'MODEL',
-        'RO',
-        'RM',
-        'by-partlabel',
-        'by-path',
-        'by-id',
-        'UUID',
-        'SERIAL',
-        'MIN-IO',
-        'PHY-SEC',
-        'LOG-SEC',
-        'WWN',
-        'PARTUUID',
-        'PARTTYPE',
-        'PARTLABEL',
-        'DISC-ALN', 'DISC-GRAN', 'DISC-MAX', 'DISC-ZERO',
-        'STATE',
-        'PARTFLAGS',
-        'LABEL',
-        'SCHED',
-        'VENDOR',
-        'RAND',
-        'REV',
-        'WSAME',
-    ]
-
-    sort_order = {key: value for value, key in enumerate([
-        'displayname',
-        'by-vdev',
-        'location',
-
-        'name',
-        'KNAME',
-        'zpath',
-        'MOUNTPOINT',
-        'FSTYPE',
-        'SIZE',
-        'TRAN',
-        'HCTL',
-        'MAJ:MIN',
-        'OWNER',
-        'GROUP',
-        'MODE',
-        'TYPE',
-        'ROTA',
-
-
-        # 'ALIGNMENT',
-        # 'MIN-IO',
-        # 'OPT-IO',
-        # 'PHY-SEC',
-        # 'LOG-SEC',
-        # 'RO',
-        # 'RM',
-        # 'DISC-ALN', 'DISC-GRAN', 'DISC-MAX', 'DISC-ZERO',
-        # 'MODEL',
-        # 'STATE',
-        # 'LABEL',
-        # 'FSTYPE',
-        # 'VENDOR',
-        # 'UUID',
-        # 'WWN',
-        # 'SERIAL',
-    ])}
 
     # munge
     def dname_for(row, *, last):
@@ -210,7 +200,7 @@ def main():
         row['location'] = loc_for(row)
 
     # figure out labels
-    missing_labels = all_labels - set(importance)
+    missing_labels = all_labels - set(IMPORTANCE)
 
     omit = {'MODEL', 'PKNAME', 'name', 'zpath', 'MOUNTPOINT', 'TYPE', 'by-vdev'}
 
@@ -228,7 +218,7 @@ def main():
     _, width_limit = terminal_size()
     width_limit -= 1
 
-    for label in importance:
+    for label in IMPORTANCE:
         if label in omit:
             continue
 
@@ -268,8 +258,8 @@ def main():
     # print
     def order(elt):
         w, l = elt
-        if l in sort_order:
-            return sort_order[l]
+        if l in SORT_ORDER:
+            return SORT_ORDER[l]
         else:
             return w + 1000 # shorter ones first
 
