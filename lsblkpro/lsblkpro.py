@@ -161,6 +161,29 @@ def dev_name_split(device):
 
     return tuple(to_int_maybe(part) for part in re.findall(r'(?:[a-z]+|\d+)', device))
 
+def apply_filters(rows, args):
+    devices = []
+    for f in args.filters:
+        try:
+            if '=~' in f:
+                lhs, rhs = f.split('=~', 1)
+                logging.debug("Showing only devices where %s matches /%s/", lhs, rhs)
+                devices = [d for d in devices if re.match(rhs, d[lhs])]
+            elif '!=' in f:
+                lhs, rhs = f.split('!=', 1)
+                logging.debug("Showing only devices where %s != '%s'", lhs, rhs)
+                devices = [d for d in devices if d[lhs] != rhs]
+            elif '=' in f:
+                lhs, rhs = f.split('=', 1)
+                logging.debug("Showing only devices where %s == '%s'", lhs, rhs)
+                devices = [d for d in devices if d[lhs] == rhs]
+            else:
+                logging.error("fmp")
+                sys.exit(0)
+        except KeyError as ex:
+            logging.error("no such key '%s'", lhs)
+            sys.exit(0)
+
 def figure_out_labels(rows):
     omit = {
         'PKNAME', 'name', 'zpath', 'MOUNTPOINT', 'TYPE', 'by-vdev', 'holders', 'partitions', # used by munge
@@ -308,10 +331,10 @@ def main():
     parser.add_argument("-i", "--highlight",
                         help="highlight entries by a field")
 
-    # parser.add_argument("-w", "--where", action='append', dest='filters', default=[],
-    #                     help="filters e.g. NAME=sdc, vdev=a4")
-    # parser.add_argument("-p", "--partitions", action='store_true',
-    #                     help="show all partitions")
+    parser.add_argument("-w", "--where", action='append', dest='filters', default=[],
+                        help="filters e.g. NAME=sdc, vdev=a4")
+    parser.add_argument("-d", "--only_devices", action='store_true',
+                        help="don't show partitions")
     args = parser.parse_args()
 
     ##
@@ -329,15 +352,17 @@ def main():
 
     for device in sorted(devices.values(), key=device_order):
         rows.append(device)
-        if device.get('zpath'):
+        if device.get('zpath') or args.only_devices:
             continue  # xxx optionally not filter zpool drive partitions
         for partname in device['partitions']:
             part = partitions[partname]
             assert part['PKNAME'] == device['name']
             rows.append(part)
 
-    munge(rows, devices, partitions)
+    apply_filters(rows, args)
 
+    # munge
+    munge(rows, devices, partitions)
     munge_highlights(rows, args.highlight)
 
     # figure out labels
@@ -377,68 +402,3 @@ def main():
     width_label_pairs.sort(key=column_order)
     print_table(width_label_pairs, rows)
 
-###
-
-def apply_filters(devices, filters):
-    for f in filters:
-        try:
-            if '=~' in f:
-                lhs, rhs = f.split('=~', 1)
-                logging.debug("Showing only devices where %s matches /%s/", lhs, rhs)
-                devices = [d for d in devices if re.match(rhs, d[lhs])]
-            elif '!=' in f:
-                lhs, rhs = f.split('!=', 1)
-                logging.debug("Showing only devices where %s != '%s'", lhs, rhs)
-                devices = [d for d in devices if d[lhs] != rhs]
-            elif '=' in f:
-                lhs, rhs = f.split('=', 1)
-                logging.debug("Showing only devices where %s == '%s'", lhs, rhs)
-                devices = [d for d in devices if d[lhs] == rhs]
-            else:
-                logging.error("fmp")
-                sys.exit(0)
-        except KeyError as ex:
-            logging.error("no such key '%s'", lhs)
-            sys.exit(0)
-    return devices
-
-def old_main():
-    devices = apply_filters(top_level_devices, args.filters)
-    if not devices:
-        print("no matches among {} devices".format(len(top_level_devices)))
-        sys.exit(0)
-
-    # punch up with zpool status, if we can get it without prompting for a password
-    try:
-        zpool_status = subprocess.check_output(['sudo', '-n', 'zpool', 'status'], stderr=subprocess.STDOUT)
-        zpaths = parse_zpool_status(zpool_status)
-        if all(v.endswith('-0') for v in zpaths.values()):
-            zpaths = {k: v[0:-2] for k, v in zpaths.items()}
-        for d in devices:
-            vdev = d.get('by-vdev')
-            idd = d.get('by-id')
-            if vdev and vdev in zpaths:
-                d['MOUNTPOINT'] = zpaths[vdev]
-            elif idd and idd in zpaths:
-                d['MOUNTPOINT'] = zpaths[idd]
-    except subprocess.CalledProcessError as ex:
-        if ex.output == 'sudo: a password is required\n' and ex.returncode == 1:
-            print("WARNING: couldn't get zpool status non-interactively; consider adding this to sudoers:\n")
-            print("    {} ALL=NOPASSWD: /sbin/zpool status\n".format(os.environ['USER']))
-        else:
-            logging.exception(ex)
-            print()
-
-    highlights = find_highlights(devices, args.highlight)
-
-
-    labels, uninteresting = pull_uninteresting(labels, rows)
-
-    if uninteresting:
-        print("Every device has these fields:")
-        lwidth = max(len(l) for l, _ in uninteresting)
-        for l, v in uninteresting:
-            print("  {0:{lwidth}} = {1}".format(l, v, lwidth=lwidth))
-        print()
-
-    print_table(labels, rows, highlights)
