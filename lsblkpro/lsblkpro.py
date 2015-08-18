@@ -147,27 +147,19 @@ def header(_, l, width=None):
 def main():
     args = {'all': False}
 
-    # xxx pull in long descriptions from lsblk, somehow
-
+    # xxx pull in /dev/zvol/*/*
     devices, partitions = data.get_data(args)
-    # xxx optionally not filter zpool drive partitions
-    not_zpool_partitions = {k: p for k, p in partitions.items() if not devices[p['PKNAME']].get('zpath') }
 
     # compute rows (each device followed by its partitions)
     rows = []
     for device in sorted(devices.values(), key=operator.itemgetter('name')):
         rows.append(device)
         if device.get('zpath'):
-            continue
+            continue  # xxx optionally not filter zpool drive partitions
         for partname in device['partitions']:
             part = partitions[partname]
             assert part['PKNAME'] == device['name']
             rows.append(part)
-
-    # labels
-    all_labels = set()
-    for row in rows:  # victoresque
-        all_labels |= row.keys()
 
     # munge
     def display_name_for(row, *, last):
@@ -246,6 +238,11 @@ def main():
             print("  {0:{lwidth}} = {1}".format(l, v, lwidth=lwidth))
         print()
 
+    # labels in `rows` not in IMPORTANCE or omit
+    all_labels = set()
+    for row in rows:  # victoresque
+        all_labels |= row.keys()
+
     missing_labels = all_labels - set(IMPORTANCE) - omit
     if missing_labels:
         print("Missing labels:\n  {}\n".format(sorted(missing_labels)))
@@ -254,16 +251,15 @@ def main():
         print("Overflowing labels:\n  {}\n".format(sorted(overflow)))
 
     # print
-    def order(elt):
+    def column_order(elt):
         w, l = elt
         if l in SORT_ORDER:
             return SORT_ORDER[l]
         else:
             return w + 1000 # shorter ones first
 
-    width_label_pairs = sorted(width_label_pairs, key=order)
+    width_label_pairs.sort(key=column_order)
     print_table(width_label_pairs, rows, [])
-
 
 ###
 
