@@ -53,15 +53,6 @@ def parse_zpool_status(status):
             continue
     return rv
 
-# def dev_name_split(device):
-#     def to_int_maybe(p):
-#         try:
-#             return int(p)
-#         except ValueError:
-#             return p
-#
-#     return tuple(to_int_maybe(part) for part in re.findall(r'(?:[a-z]+|\d+)', device))
-
 def top_level_devices(args):
     for device in os.listdir(os.path.join('/sys', 'block')):
         if args.all or not re.fullmatch(r'(?:ram\d+|loop\d+)', device):

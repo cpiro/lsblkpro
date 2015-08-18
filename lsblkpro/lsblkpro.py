@@ -152,6 +152,15 @@ def width_for_column(label, rows):
         max(len(value_to_str(row, label)) for row in rows)
     )
 
+def dev_name_split(device):
+    def to_int_maybe(p):
+        try:
+            return int(p)
+        except ValueError:
+            return p
+
+    return tuple(to_int_maybe(part) for part in re.findall(r'(?:[a-z]+|\d+)', device))
+
 def figure_out_labels(rows):
     omit = {
         'PKNAME', 'name', 'zpath', 'MOUNTPOINT', 'TYPE', 'by-vdev', 'holders', 'partitions', # used by munge
@@ -285,7 +294,10 @@ def main():
 
     # compute rows (each device followed by its partitions)
     rows = []
-    for device in sorted(devices.values(), key=operator.itemgetter('name')):
+
+    def device_order(device):
+        return dev_name_split(device['name'])
+    for device in sorted(devices.values(), key=device_order):
         rows.append(device)
         if device.get('zpath'):
             continue  # xxx optionally not filter zpool drive partitions
