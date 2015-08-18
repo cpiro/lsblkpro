@@ -202,9 +202,13 @@ def figure_out_labels(rows):
 
 def munge(rows, devices, partitions):
     def display_name_for(row, *, last):
-        vdev = '•{}'.format(row['by-vdev']) if (row.get('by-vdev') and
-                                                row['name'] not in partitions) else ''
-        typ = '•({})'.format(row['TYPE']) if row['TYPE'] not in ('disk', 'part', 'md') else ''
+        vdev = ('•{}'.format(row['by-vdev']) if (row.get('by-vdev') and
+                                                 row['name'] not in partitions)
+                                             else '')
+        typ = ('•({})'.format(row['TYPE']) if not (row.get('TYPE') in (None, 'disk', 'part', 'md')
+                                                   or (row.get('TYPE') == 'loop'
+                                                       and row['name'].startswith('loop')))
+                                           else '')
 
         if row['name'] in partitions:
             box = ' └─ ' if last else ' ├─ '
@@ -276,7 +280,7 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument("-a", "--all", action='store_true',
-                        help="print all devices (passed through to lsblk)")
+                        help="don't exclude ram and loop devices")
     # parser.add_argument("-s", "--sort", action='append', dest='sorts', default=[],
     #                     help="sort by field(s)")
     # parser.add_argument("-w", "--where", action='append', dest='filters', default=[],
@@ -290,7 +294,7 @@ def main():
     ##
 
     # xxx pull in /dev/zvol/*/*
-    devices, partitions = data.get_data(args)
+    devices, partitions, missing_from_lsblk = data.get_data(args)
 
     # compute rows (each device followed by its partitions)
     rows = []
@@ -330,6 +334,9 @@ def main():
 
     if overflow:
         print("Overflowing labels:\n  {}\n".format(sorted(overflow)))
+
+    if missing_from_lsblk:
+        print("Present in /sys/block/*/* but not in `lsblk`:\n  {}\n".format(', '.join(sorted(missing_from_lsblk, key=dev_name_split))))
 
     # print
     def column_order(elt):

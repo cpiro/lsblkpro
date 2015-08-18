@@ -113,19 +113,35 @@ def walk_partition(device, part):
 
 def get_data(args):
     # sysfs
-    devices = []
-    partitions = []
+    device_list = []
+    partition_list = []
+    sysfs_names = set()
     for device_name in top_level_devices(args):
         row = walk_device(device_name)
-        devices.append(row)
+        device_list.append(row)
+        sysfs_names.add(row['name'])
         for part_name in row['partitions']:
-            partitions.append(walk_partition(device_name, part_name))
-
-    devices = {d['name']: d for d in devices}
-    partitions = {p['name']: p for p in partitions}
+            row = walk_partition(device_name, part_name)
+            partition_list.append(row)
+            sysfs_names.add(row['name'])
 
     # lsblk
     results = lsblk(args)
+
+    lsblk_names = set()
+    for result in results:
+        name = result['NAME']
+        lsblk_names.add(name)
+        if not name in sysfs_names:
+            raise RuntimeError("device '{}' in lsblk results not in /sys/block/*/*".format(name))
+
+    # xxx rather than exclude these, use maj:min from sysfs
+    missing_from_lsblk = sysfs_names - lsblk_names
+    devices = {d['name']: d for d in device_list
+                            if d['name'] in lsblk_names}
+    partitions = {p['name']: p for p in partition_list
+                               if p['name'] in lsblk_names}
+
     def merge_row(row, result):
         row.update(result)
         del row['NAME']
@@ -182,4 +198,4 @@ def get_data(args):
             logging.exception(ex)
             print()
 
-    return devices, partitions
+    return devices, partitions, missing_from_lsblk
