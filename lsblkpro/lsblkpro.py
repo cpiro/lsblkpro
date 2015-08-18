@@ -118,6 +118,16 @@ def terminal_size():
                            struct.pack('HHHH', 0, 0, 0, 0)))
     return h, w
 
+def label_to_str(_, l, width=None):
+    if l == 'displayname':
+        return 'DEVICE'
+    elif l == 'location':
+        return ''
+    elif l.startswith('by-'):
+        return l[3:]
+    else:
+        return l
+
 def value_to_str(row, label):
     if label == 'MAJ:MIN':  # align the colons
         v = ' ' * (3-row[label].index(':')) + row[label]
@@ -127,21 +137,20 @@ def value_to_str(row, label):
     else:
         return ''
 
+def value_to_str_bullets(r, l, width):
+    s = value_to_str(r, l)
+    if '•' in s:
+        a, b = s.split('•')
+        sep = ' ' * (width - len(a) - len(b))
+        return a + sep + b
+    else:
+        return s
+
 def width_for_column(label, rows):
     return max(
-        len(header(label, label)),
+        len(label_to_str(label, label)),
         max(len(value_to_str(row, label)) for row in rows)
     )
-
-def header(_, l, width=None):
-    if l == 'displayname':
-        return 'DEVICE'
-    elif l == 'location':
-        return ''
-    elif l.startswith('by-'):
-        return l[3:]
-    else:
-        return l
 
 def figure_out_labels(rows):
     omit = {
@@ -228,25 +237,16 @@ def print_table(width_label_pairs, rows, highlights):
         #'MOUNTPOINT': '<',
         }
 
-    def format(l, w):
-        fmt = format_options.get(l)
-        if fmt in ('>', '<'):
-            fmt += str(w)
-        elif fmt is None:
-            fmt = '>' + str(w)
-        return fmt
-
-    def value_to_str_bullets(r, l, width):
-        s = value_to_str(r, l)
-        if '•' in s:
-            a, b = s.split('•')
-            sep = ' ' * (width - len(a) - len(b))
-            return a + sep + b
-        else:
-            return s
-
     def print_row(r, xform):
-        cells = ("{0:{fmt}}".format(xform(r,l,width=w), fmt=format(l,w))
+        def get_format(l, w):
+            fmt = format_options.get(l)
+            if fmt in ('>', '<'):
+                fmt += str(w)
+            elif fmt is None:
+                fmt = '>' + str(w)
+            return fmt
+
+        cells = ("{0:{fmt}}".format(xform(r, l, width=w), fmt=get_format(l, w))
                  for w, l in width_label_pairs)
         line = ' '.join(cells)
 
@@ -256,7 +256,7 @@ def print_table(width_label_pairs, rows, highlights):
 
         print(line)
 
-    print_row({l: l for w, l in width_label_pairs}, header)
+    print_row({l: l for w, l in width_label_pairs}, label_to_str)
     for r in rows:
         print_row(r, value_to_str_bullets)
 
