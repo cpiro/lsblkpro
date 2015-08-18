@@ -403,7 +403,7 @@ def main():
         print("Overflowing labels:\n  {}\n".format(', '.join(sorted(overflow))))
 
     if missing_from_lsblk:
-        print("Present in /sys/block/*/* but not in `lsblk`:\n  {}\n".format(', '.join(sorted(missing_from_lsblk, key=dev_name_split))))
+        print("Present in sysfs but not in `lsblk`:\n  {}\n".format(', '.join(sorted(missing_from_lsblk, key=dev_name_split))))
 
     # print
     def column_order(elt):
@@ -415,4 +415,3 @@ def main():
 
     width_label_pairs.sort(key=column_order)
     print_table(width_label_pairs, rows)
-
