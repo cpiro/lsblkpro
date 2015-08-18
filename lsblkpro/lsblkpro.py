@@ -1,7 +1,5 @@
 #!/usr/bin/env python3.4
 
-# TODO prioritize fields based on term width, mix in `lsscsi`, scsi path, sas
-# addr/phy, everything
 # TODO attach time
 # xxx package desc should include /sys/block
 
@@ -341,7 +339,7 @@ def main():
     parser.add_argument("-g", "--highlight",
                         help="highlight entries by a field")
     parser.add_argument("-a", "--all", action='store_true',
-                        help="include ram* and loop* devices")
+                        help="include ram* and loop* devices, and include partitions of zpool drives")
     args = parser.parse_args()
 
     # xxx pull in /dev/zvol/*/*
@@ -357,8 +355,8 @@ def main():
 
     for device in sorted(devices.values(), key=device_order):
         rows.append(device)
-        if device.get('zpath') or args.only_devices:
-            continue  # xxx optionally not filter zpool drive partitions
+        if (device.get('zpath') and not args.all) or args.only_devices:
+            continue
         for partname in device['partitions']:
             part = partitions[partname]
             assert part['PKNAME'] == device['name']
