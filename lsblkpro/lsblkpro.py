@@ -28,7 +28,7 @@ IMPORTANCE = [
     'displayname',
     'location',
 
-        'name',
+    'name',
     'KNAME',
     'by-vdev',
     'zpath',
@@ -132,7 +132,9 @@ def width_for_column(label, rows):
     )
 
 def header(_, l, width=None):
-    if l in ('displayname', 'location'):
+    if l == 'displayname':
+        return 'DEVICE'
+    elif l == 'location':
         return ''
     elif l.startswith('by-'):
         return l[3:]
@@ -144,12 +146,12 @@ def main():
     args = {'all': False}
 
     # xxx pull in long descriptions from lsblk, somehow
-    # xxx coalesce zpath+MOUNTPOINT
 
     devices, partitions = data.get_data(args)
     # xxx optionally not filter zpool drive partitions
     not_zpool_partitions = {k: p for k, p in partitions.items() if not devices[p['PKNAME']].get('zpath') }
 
+    # compute rows (each device followed by its partitions)
     rows = []
     for device in sorted(devices.values(), key=operator.itemgetter('name')):
         rows.append(device)
@@ -162,11 +164,11 @@ def main():
 
     # labels
     all_labels = set()
-    for row in rows:
+    for row in rows:  # victoresque
         all_labels |= row.keys()
 
     # munge
-    def dname_for(row, *, last):
+    def display_name_for(row, *, last):
         vdev = '•{}'.format(row['by-vdev']) if (row.get('by-vdev') and
                                                 row['name'] not in partitions) else ''
         typ = '•({})'.format(row['TYPE']) if row['TYPE'] not in ('disk', 'part', 'md') else ''
@@ -177,7 +179,7 @@ def main():
         else:
             return row['name'] + vdev + typ
 
-    def loc_for(row):
+    def location_for(row):
         zpath = row.get('zpath', '')
         mnt = row.get('MOUNTPOINT', '')
         holders = '[{}]'.format(', '.join(row['holders'])) if row.get('holders') else ''
@@ -190,30 +192,29 @@ def main():
             last = rows[ii+1]['name'] in devices
         except IndexError:
             last = True
-        row['displayname'] = dname_for(row, last=last)
+        row['displayname'] = display_name_for(row, last=last)
         if row['name'] in partitions:
             row['by-vdev'] = ''
-
         if row['FSTYPE'] in ('', 'linux_raid_member', 'zfs_member'):
             row['FSTYPE'] = ''
-
-        row['location'] = loc_for(row)
+        row['location'] = location_for(row)
 
     # figure out labels
-    missing_labels = all_labels - set(IMPORTANCE)
+    omit = {
+        'PKNAME', 'name', 'zpath', 'MOUNTPOINT', 'TYPE', 'by-vdev', 'holders', 'partitions', # used by munge
+        'major', 'minor',  'size', # xxx
+        'MODEL', # boring
+    }
 
-    omit = {'MODEL', 'PKNAME', 'name', 'zpath', 'MOUNTPOINT', 'TYPE', 'by-vdev'}
-
-    redundant = set()
+    every_device_has = []
     for candidate, reference in (('KNAME', 'name'), ):
         if all(row[candidate] == row[reference] for row in rows):
-            redundant.add((candidate, reference))
+            every_device_has.append((candidate, '<{}>'.format(reference)))
             omit.add(candidate)
 
-    width_labels = []
-    same_for_every = []
+    width_label_pairs = []
     overflow = []
-    NEVER_SAME_FOR_EVERY = ('SIZE',)
+    ALWAYS_INTERESTING = frozenset('SIZE')
     running_width = 0
     _, width_limit = terminal_size()
     width_limit -= 1
@@ -223,32 +224,28 @@ def main():
             continue
 
         values_in_this_column = set(value_to_str(r, label) for r in rows)
-        if (label in NEVER_SAME_FOR_EVERY or not (len(rows) == 1 or len(values_in_this_column) == 1)):
+        if (label in ALWAYS_INTERESTING or
+            not (len(rows) == 1 or len(values_in_this_column) == 1)):
             width = width_for_column(label, rows)
 
             if running_width + width > width_limit:
                 overflow.append(label)
             else:
                 running_width += width + 1
-                width_labels.append((width, label))
+                width_label_pairs.append((width, label))
         else:
             val = values_in_this_column.pop()
-            same_for_every.append((label, val))
+            every_device_has.append((label, val))
 
     # pre-print
-    if same_for_every:
+    if every_device_has:
         print("Every device has these fields:")
-        lwidth = max(len(l) for l, _ in same_for_every)
-        for l, v in same_for_every:
+        lwidth = max(len(l) for l, _ in every_device_has)
+        for l, v in every_device_has:
             print("  {0:{lwidth}} = {1}".format(l, v, lwidth=lwidth))
         print()
 
-    if redundant:
-        print("Fields that always match:")
-        for c, r in redundant:
-            print("  {} = {}".format(c, r))
-        print()
-
+    missing_labels = all_labels - set(IMPORTANCE) - omit
     if missing_labels:
         print("Missing labels:\n  {}\n".format(sorted(missing_labels)))
 
@@ -263,8 +260,8 @@ def main():
         else:
             return w + 1000 # shorter ones first
 
-    width_labels = sorted(width_labels, key=order)
-    print_table(width_labels, rows, [])
+    width_label_pairs = sorted(width_label_pairs, key=order)
+    print_table(width_label_pairs, rows, [])
 
 
 ###
@@ -290,7 +287,7 @@ def by_dev_disk(kind, results):
     for r in results:
         r[kind] = mapp.get(r['NAME'], '')
 
-def print_table(width_labels, rows, highlights):
+def print_table(width_label_pairs, rows, highlights):
     format_options = {
         #'name': '<',
         'displayname': '<',
@@ -323,7 +320,7 @@ def print_table(width_labels, rows, highlights):
 
     def print_row(r, xform):
         cells = ("{0:{fmt}}".format(xform(r,l,width=w), fmt=format(l,w))
-                 for w, l in width_labels)
+                 for w, l in width_label_pairs)
         line = ' '.join(cells)
 
         color = r.get('$color')
@@ -332,7 +329,7 @@ def print_table(width_labels, rows, highlights):
 
         print(line)
 
-    print_row({l: l for w, l in width_labels}, header)
+    print_row({l: l for w, l in width_label_pairs}, header)
     for r in rows:
         print_row(r, value_to_str_bullets)
 
