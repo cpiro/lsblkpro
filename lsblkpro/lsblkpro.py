@@ -302,14 +302,16 @@ def by_dev_disk(kind, results):
 
 def print_table(width_labels, rows, highlights):
     format_options = {
-        'name': '<',
+        #'name': '<',
         'displayname': '<',
         'location': '<',
-        'zpool': '>',
-        'by-vdev': '>',
+        #'zpool': '>',
+        'TRAN': '>',
+        'HCTL': '<',
+        #'by-vdev': '>',
         'by-id': '<',
         'by-path': '<',
-        'MOUNTPOINT': '<',
+        #'MOUNTPOINT': '<',
         }
 
     def format(l, w):
