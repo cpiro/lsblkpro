@@ -24,6 +24,8 @@ pp = pprint.pprint
 
 from . import data
 
+ALWAYS_INTERESTING = frozenset('SIZE')
+
 IMPORTANCE = [
     'displayname',
     'location',
@@ -214,7 +216,6 @@ def main():
 
     width_label_pairs = []
     overflow = []
-    ALWAYS_INTERESTING = frozenset('SIZE')
     running_width = 0
     _, width_limit = terminal_size()
     width_limit -= 1
@@ -265,27 +266,6 @@ def main():
 
 
 ###
-
-
-def by_dev_disk(kind, results):
-    try:
-        path = os.path.join('/dev', 'disk', kind)
-        devices = os.listdir(path)
-    except OSError as ex:
-        logging.warning("can't sort by %s; no such directory", path)
-        for r in results:
-            r[kind] = ''
-        return
-
-    def lookup(device):
-        path = os.path.join('/dev', 'disk', kind, device)
-        link = os.readlink(path)
-        return os.path.basename(link)
-
-    mapp = {lookup(d): d for d in devices}
-
-    for r in results:
-        r[kind] = mapp.get(r['NAME'], '')
 
 def print_table(width_label_pairs, rows, highlights):
     format_options = {
