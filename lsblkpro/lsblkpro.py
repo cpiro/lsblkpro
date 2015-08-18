@@ -325,17 +325,13 @@ def main():
     # xxx allow 'size' but not 'SIZE' (which is lsblk's string)
     parser.add_argument("-x", "--sort", action='append', dest='sorts', default=[],
                         help="sort devices by field(s)")
-
     parser.add_argument("-i", "--highlight",
                         help="highlight entries by a field")
-
     parser.add_argument("-w", "--where", action='append', dest='filters', default=[],
                         help="filters e.g. NAME=sdc, vdev=a4")
     parser.add_argument("-d", "--only_devices", action='store_true',
                         help="don't show partitions")
     args = parser.parse_args()
-
-    ##
 
     # xxx pull in /dev/zvol/*/*
     devices, partitions, missing_from_lsblk = data.get_data(args)
