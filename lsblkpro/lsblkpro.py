@@ -194,8 +194,15 @@ def figure_out_labels(rows, args):
     width_label_pairs = []
     overflow = []
     running_width = 0
-    _, width_limit = terminal_size()
-    width_limit -= 1
+    if args.all_columns:
+        width_limit = None
+    else:
+        try:
+            _, width_limit = terminal_size()
+            width_limit -= 1
+            # xxx if output is not a tty then be sure not to limit width
+        except Exception:
+            width_limit = None
 
     for label in args.include:
         importance.remove(label)
@@ -211,7 +218,7 @@ def figure_out_labels(rows, args):
             not (len(rows) == 1 or len(values_in_this_column) == 1)):
             width = width_for_column(label, rows)
 
-            if running_width + width > width_limit:
+            if width_limit is not None and running_width + width > width_limit:
                 overflow.append(label)
             else:
                 running_width += width + 1
@@ -333,8 +340,11 @@ def main():
                         help="filters e.g. NAME=sdc, vdev=a4")
     parser.add_argument("-g", "--highlight",
                         help="highlight entries by a field")
-    parser.add_argument("-a", "--all", action='store_true',
+    parser.add_argument("-a", "--all-devices", action='store_true',
                         help="include ram* and loop* devices, and include partitions of zpool drives")
+    parser.add_argument("-A", "--all-columns", action='store_true',
+                        help="include all columns, appropriate to pipe to `less -S`")
+
     args = parser.parse_args()
 
     # xxx pull in /dev/zvol/*/*
@@ -350,7 +360,7 @@ def main():
 
     for device in sorted(devices.values(), key=device_order):
         rows.append(device)
-        if (device.get('zpath') and not args.all) or args.only_devices:
+        if (device.get('zpath') and not args.all_devices) or args.only_devices:
             continue
         for partname in device['partitions']:
             part = partitions[partname]
