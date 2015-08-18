@@ -261,6 +261,10 @@ def print_table(width_label_pairs, rows):
         print_row(r, value_to_str_bullets)
 
 def main():
+    if not sys.platform.startswith('linux'):
+        print("{}: fatal error: Linux is required".format(os.path.basename(sys.argv[0])))
+        sys.exit(1)
+
     args = {'all': False}
 
     # xxx pull in /dev/zvol/*/*
@@ -356,10 +360,6 @@ def find_highlights(devices, highlight):
         d['$color'] = color_table[d[highlight]]
 
 def old_main():
-    if not sys.platform.startswith('linux'):
-        logging.error("You're gonna want that Linux")
-        sys.exit(1)
-
     parser = argparse.ArgumentParser()
     parser.add_argument("-a", "--all", action='store_true',
                         help="print all devices (passed through to lsblk)")
