@@ -5,7 +5,7 @@ import sys
 import re
 import subprocess
 
-def lsblk(labels, args):
+def lsblk(args):
     cmd = ['lsblk']
     if args.all:
         cmd.append('--all')
@@ -125,7 +125,7 @@ def get_data(args):
     partitions = {p['name']: p for p in partitions}
 
     # lsblk
-    results = lsblk(None, args)
+    results = lsblk(args)
     def merge_row(row, result):
         row.update(result)
         del row['NAME']
