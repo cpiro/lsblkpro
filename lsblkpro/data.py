@@ -7,7 +7,7 @@ import subprocess
 
 def lsblk(labels, args):
     cmd = ['lsblk']
-    if args['all']:
+    if args.all:
         cmd.append('--all')
     cmd.extend(['-P', '-O'])
     out = subprocess.check_output(cmd)
@@ -64,7 +64,7 @@ def parse_zpool_status(status):
 
 def top_level_devices(args):
     for device in os.listdir(os.path.join('/sys', 'block')):
-        if args['all'] or not re.fullmatch(r'(?:ram\d+|loop\d+)', device):
+        if args.all or not re.fullmatch(r'(?:ram\d+|loop\d+)', device):
             yield device
 
 def is_partition_dirent(device, directory):

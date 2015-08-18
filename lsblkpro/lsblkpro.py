@@ -265,7 +265,20 @@ def main():
         print("{}: fatal error: Linux is required".format(os.path.basename(sys.argv[0])))
         sys.exit(1)
 
-    args = {'all': False}
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-a", "--all", action='store_true',
+                        help="print all devices (passed through to lsblk)")
+    # parser.add_argument("-s", "--sort", action='append', dest='sorts', default=[],
+    #                     help="sort by field(s)")
+    # parser.add_argument("-w", "--where", action='append', dest='filters', default=[],
+    #                     help="filters e.g. NAME=sdc, vdev=a4")
+    # parser.add_argument("-i", "--highlight",
+    #                     help="highlight entries by a field")
+    # parser.add_argument("-p", "--partitions", action='store_true',
+    #                     help="show all partitions")
+    args = parser.parse_args()
+
+    ##
 
     # xxx pull in /dev/zvol/*/*
     devices, partitions = data.get_data(args)
@@ -360,22 +373,6 @@ def find_highlights(devices, highlight):
         d['$color'] = color_table[d[highlight]]
 
 def old_main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-a", "--all", action='store_true',
-                        help="print all devices (passed through to lsblk)")
-    parser.add_argument("-b", "--by", action='append', dest='lookups', default=[],
-                        help="look up alternate names in /dev/disk/<arg>")
-    parser.add_argument("-s", "--sort", action='append', dest='sorts', default=[],
-                        help="sort by field(s)")
-    parser.add_argument("-w", "--where", action='append', dest='filters', default=[],
-                        help="filters e.g. NAME=sdc, zpool=a4")
-    parser.add_argument("-i", "--highlight",
-                        help="highlight entries by a field")
-    parser.add_argument("-p", "--partitions", action='store_true',
-                        help="show all partitions")
-    parser.add_argument("-z", "--zpool", action='store_true',
-                        help="equiv. to: -w 'zpool!=' -s zpool -i SIZE")
-    args = parser.parse_args()
 
     if args.zpool:
         success = False
