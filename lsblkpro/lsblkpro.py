@@ -319,19 +319,18 @@ def main():
 
     # argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("-a", "--all", action='store_true',
-                        help="don't exclude ram and loop devices")
-
+    parser.add_argument("-d", "--only-devices", action='store_true',
+                        help="show only devices (not partitions)")
     # xxx expose field names that aren't labels
     # xxx allow 'size' but not 'SIZE' (which is lsblk's string)
     parser.add_argument("-x", "--sort", action='append', dest='sorts', default=[],
                         help="sort devices by field(s)")
-    parser.add_argument("-i", "--highlight",
-                        help="highlight entries by a field")
     parser.add_argument("-w", "--where", action='append', dest='filters', default=[],
                         help="filters e.g. NAME=sdc, vdev=a4")
-    parser.add_argument("-d", "--only_devices", action='store_true',
-                        help="don't show partitions")
+    parser.add_argument("-i", "--highlight",
+                        help="highlight entries by a field")
+    parser.add_argument("-a", "--all", action='store_true',
+                        help="include ram* and loop* devices")
     args = parser.parse_args()
 
     # xxx pull in /dev/zvol/*/*
