@@ -5,13 +5,8 @@
 
 import os
 import sys
-import subprocess
 import re
-import operator
-import logging
 import argparse
-import itertools
-import operator
 
 import struct
 import fcntl
@@ -276,7 +271,7 @@ def munge_highlights(rows, field):
                 color = color_list.pop(0)
                 color_table[row[field]] = "\033[{}m".format(color)
             except IndexError:
-                logging.error("too many colors")
+                print("fatal: not enough colors to highlight by '{}'".format(field))
                 sys.exit(0)
         row['$color'] = color_table[row[field]]
 
