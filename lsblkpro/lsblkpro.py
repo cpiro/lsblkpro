@@ -162,27 +162,25 @@ def dev_name_split(device):
     return tuple(to_int_maybe(part) for part in re.findall(r'(?:[a-z]+|\d+)', device))
 
 def apply_filters(rows, args):
-    devices = []
+    filter_log = []
     for f in args.filters:
-        try:
-            if '=~' in f:
-                lhs, rhs = f.split('=~', 1)
-                logging.debug("Showing only devices where %s matches /%s/", lhs, rhs)
-                devices = [d for d in devices if re.match(rhs, d[lhs])]
-            elif '!=' in f:
-                lhs, rhs = f.split('!=', 1)
-                logging.debug("Showing only devices where %s != '%s'", lhs, rhs)
-                devices = [d for d in devices if d[lhs] != rhs]
-            elif '=' in f:
-                lhs, rhs = f.split('=', 1)
-                logging.debug("Showing only devices where %s == '%s'", lhs, rhs)
-                devices = [d for d in devices if d[lhs] == rhs]
-            else:
-                logging.error("fmp")
-                sys.exit(0)
-        except KeyError as ex:
-            logging.error("no such key '%s'", lhs)
-            sys.exit(0)
+        if '=~' in f:
+            lhs, rhs = f.split('=~', 1)
+            filter_log.append("{} matches regexp /{}/".format(lhs, rhs))
+            rows = [row for row in rows if re.match(rhs, row[lhs])]
+        elif '=' in f:
+            lhs, rhs = f.split('=', 1)
+            filter_log.append("{} = {}".format(lhs, rhs))
+            rows = [row for row in rows if row[lhs] == rhs]
+        elif '!=' in f:
+            lhs, rhs = f.split('!=', 1)
+            filter_log.append("{} != {}".format(lhs, rhs))
+            rows = [row for row in rows if row[lhs] != rhs]
+        else:
+            filter_log.append("{} is set".format(f))
+            rows = [row for row in rows if row.get(f)]
+
+    return rows, filter_log
 
 def figure_out_labels(rows):
     omit = {
@@ -359,7 +357,7 @@ def main():
             assert part['PKNAME'] == device['name']
             rows.append(part)
 
-    apply_filters(rows, args)
+    rows, filter_log = apply_filters(rows, args)
 
     # munge
     munge(rows, devices, partitions)
@@ -369,6 +367,12 @@ def main():
     width_label_pairs, every_device_has, omit, overflow = figure_out_labels(rows)
 
     # pre-print
+    if filter_log:
+        print("Showing only entries where:")
+        for f in filter_log:
+            print("  {}".format(f))
+        print()
+
     if every_device_has:
         print("Every device has these fields:")
         lwidth = max(len(l) for l, _ in every_device_has)
