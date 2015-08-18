@@ -236,6 +236,23 @@ def munge(rows, devices, partitions):
             row['FSTYPE'] = ''
         row['location'] = location_for(row)
 
+def munge_highlights(rows, field):
+    if field is None:
+        return
+    # i'm colorblind gimme a break
+    color_list = ['0', '31', '32', '34', '41', '42', '44', '45', '30;46', '30;47']
+    color_table = {}  # value => color
+    color = None
+    for row in rows:
+        if row[field] not in color_table:
+            try:
+                color = color_list.pop(0)
+                color_table[row[field]] = "\033[{}m".format(color)
+            except IndexError:
+                logging.error("too many colors")
+                sys.exit(0)
+        row['$color'] = color_table[row[field]]
+
 def print_table(width_label_pairs, rows):
     format_options = {
         'displayname': '<',
@@ -278,6 +295,7 @@ def main():
         print("{}: fatal error: Linux is required".format(os.path.basename(sys.argv[0])))
         sys.exit(1)
 
+    # argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("-a", "--all", action='store_true',
                         help="don't exclude ram and loop devices")
@@ -287,10 +305,11 @@ def main():
     parser.add_argument("-x", "--sort", action='append', dest='sorts', default=[],
                         help="sort devices by field(s)")
 
+    parser.add_argument("-i", "--highlight",
+                        help="highlight entries by a field")
+
     # parser.add_argument("-w", "--where", action='append', dest='filters', default=[],
     #                     help="filters e.g. NAME=sdc, vdev=a4")
-    # parser.add_argument("-i", "--highlight",
-    #                     help="highlight entries by a field")
     # parser.add_argument("-p", "--partitions", action='store_true',
     #                     help="show all partitions")
     args = parser.parse_args()
@@ -318,6 +337,8 @@ def main():
             rows.append(part)
 
     munge(rows, devices, partitions)
+
+    munge_highlights(rows, args.highlight)
 
     # figure out labels
     width_label_pairs, every_device_has, omit, overflow = figure_out_labels(rows)
@@ -380,23 +401,6 @@ def apply_filters(devices, filters):
             logging.error("no such key '%s'", lhs)
             sys.exit(0)
     return devices
-
-def find_highlights(devices, highlight):
-    if highlight is None:
-        return {}
-    # i'm colorblind gimme a break
-    color_list = ['0', '31', '32', '34', '41', '42', '44', '45', '30;46', '30;47']
-    color_table = {}  # value => color
-    color = None
-    for d in devices:
-        if d[highlight] not in color_table:
-            try:
-                color = color_list.pop(0)
-                color_table[d[highlight]] = "\033[{}m".format(color)
-            except IndexError:
-                logging.error("too many colors")
-                sys.exit(0)
-        d['$color'] = color_table[d[highlight]]
 
 def old_main():
     devices = apply_filters(top_level_devices, args.filters)
