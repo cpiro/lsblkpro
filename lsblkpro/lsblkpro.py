@@ -118,12 +118,12 @@ def terminal_size():
                            struct.pack('HHHH', 0, 0, 0, 0)))
     return h, w
 
-def value_to_str(r, l):
-    if l == 'MAJ:MIN':  # align the colons
-        v = ' ' * (3-r[l].index(':')) + r[l]
+def value_to_str(row, label):
+    if label == 'MAJ:MIN':  # align the colons
+        v = ' ' * (3-row[label].index(':')) + row[label]
         return v + ' ' * (7-len(v))
-    elif l in r:
-        return str(r[l])
+    elif label in row:
+        return str(row[label])
     else:
         return ''
 
