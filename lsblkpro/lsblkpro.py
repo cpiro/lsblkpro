@@ -392,52 +392,6 @@ def find_highlights(devices, highlight):
         d['$color'] = color_table[d[highlight]]
 
 def old_main():
-
-    if args.zpool:
-        success = False
-        if os.path.exists('/dev/disk/zpool'):
-            args.filters.append('zpool!=')
-            args.sorts[0:0] = ['zpool']
-            success = True
-        if os.path.exists('/dev/disk/by-vdev'):
-            args.filters.append('by-vdev!=')
-            args.sorts[0:0] = ['by-vdev']
-            success = True
-        if not success:
-            logging.error("/dev/disk/{zpool,by-vdev} not found")
-            sys.exit(1)
-        if args.highlight is None:
-            args.highlight = 'SIZE'
-
-    labels = ['NAME','MOUNTPOINT','MAJ:MIN','RO','RM','SIZE','OWNER','GROUP','MODE','ALIGNMENT','MIN-IO','OPT-IO','PHY-SEC','LOG-SEC','ROTA','TYPE', 'MODEL', 'STATE', 'LABEL', 'FSTYPE'] # 'UUID' xxx
-
-    import itertools
-    def uniq(iterable):
-        for k, _ in itertools.groupby(iterable):
-            yield k
-
-    results = list(uniq(lsblk(labels, args)))
-
-    if args.partitions:
-        top_level_devices = results
-    else:
-        top_level_devices = [d for d in results if d['TYPE'] != 'part' or d['MOUNTPOINT'] != '']
-
-    format_options = {}
-
-    lookups = args.lookups
-    silent_lookups = []
-    if os.path.exists('/dev/disk/zpool') and 'zpool' not in lookups:
-        lookups[0:0] = ['zpool']
-    if os.path.exists('/dev/disk/by-vdev') and 'by-vdev' not in lookups:
-        lookups[0:0] = ['by-vdev']
-    if os.path.exists('/dev/disk/by-id') and 'by-id' not in lookups:
-        silent_lookups.append('by-id')
-    for kind in lookups + silent_lookups:
-        by_dev_disk(kind, top_level_devices)
-        format_options[kind] = '<'
-    labels[1:1] = lookups
-
     devices = apply_filters(top_level_devices, args.filters)
     if not devices:
         print("no matches among {} devices".format(len(top_level_devices)))
