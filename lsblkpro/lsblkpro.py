@@ -281,8 +281,12 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("-a", "--all", action='store_true',
                         help="don't exclude ram and loop devices")
-    # parser.add_argument("-s", "--sort", action='append', dest='sorts', default=[],
-    #                     help="sort by field(s)")
+
+    # xxx expose field names that aren't labels
+    # xxx allow 'size' but not 'SIZE' (which is lsblk's string)
+    parser.add_argument("-x", "--sort", action='append', dest='sorts', default=[],
+                        help="sort devices by field(s)")
+
     # parser.add_argument("-w", "--where", action='append', dest='filters', default=[],
     #                     help="filters e.g. NAME=sdc, vdev=a4")
     # parser.add_argument("-i", "--highlight",
@@ -300,7 +304,10 @@ def main():
     rows = []
 
     def device_order(device):
-        return dev_name_split(device['name'])
+        lex = [device.get(key, '') for key in args.sorts]
+        lex.append(dev_name_split(device['name']))
+        return lex
+
     for device in sorted(devices.values(), key=device_order):
         rows.append(device)
         if device.get('zpath'):
@@ -420,11 +427,6 @@ def old_main():
 
     highlights = find_highlights(devices, args.highlight)
 
-    sorts = args.sorts
-    sorts.append('NAME')
-
-    logging.debug("Sorting by %s", ', '.join(sorts))
-    rows = sorted(devices, key=operator.itemgetter(*sorts))
 
     labels, uninteresting = pull_uninteresting(labels, rows)
 
