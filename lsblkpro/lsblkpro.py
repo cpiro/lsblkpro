@@ -45,8 +45,10 @@ def width_for_column(label, rows):
         max(len(value_to_str(row,label)) for row in rows)
     )
 
-def header(_, l):
-    if l.startswith('by-'):
+def header(_, l, width=None):
+    if l in ('displayname', 'location'):
+        return ''
+    elif l.startswith('by-'):
         return l[3:]
     else:
         return l
@@ -62,8 +64,18 @@ def main():
     # xxx optionally not filter zpool drive partitions
     not_zpool_partitions = {k: p for k, p in partitions.items() if not devices[p['PKNAME']].get('zpath') }
 
-    rows = sorted(devices.values(), key=operator.itemgetter('name')) + \
-           sorted(not_zpool_partitions.values(), key=operator.itemgetter('name'))
+    rows = []
+    for device in sorted(devices.values(), key=operator.itemgetter('name')):
+        rows.append(device)
+        if device.get('zpath'):
+            continue
+        for partname in device['partitions']:
+            part = partitions[partname]
+            assert part['PKNAME'] == device['name']
+            rows.append(part)
+
+#    rows =  + \
+#           sorted(not_zpool_partitions.values(), key=operator.itemgetter('name'))
 
     #pp(devices)
     #pp(partitions)
@@ -76,61 +88,68 @@ def main():
 
     importance = [
         #'holders', 'major', 'minor', 'partitions', 'size'
+        'displayname',
+        'location',
+
         'name',
         'KNAME',
         'by-vdev',
         'zpath',
         'MOUNTPOINT',
+        'SIZE',
+        'FSTYPE',
         'HCTL',
         'MAJ:MIN',
         'TRAN',
         'RA',
         'RQ-SIZE',
-        'SIZE',
         'OWNER',
         'GROUP',
         'MODE',
         'ALIGNMENT',
-        'MIN-IO',
-        'PHY-SEC',
-        'LOG-SEC',
+        'OPT-IO',
         'TYPE',
         'ROTA',
         'MODEL',
-        'STATE',
-        'LABEL',
         'RO',
         'RM',
-        'UUID',
         'by-partlabel',
         'by-path',
         'by-id',
+        'UUID',
         'SERIAL',
-        'FSTYPE',
+        'MIN-IO',
+        'PHY-SEC',
+        'LOG-SEC',
         'WWN',
         'PARTUUID',
         'PARTTYPE',
-        'PARTFLAGS',
         'PARTLABEL',
         'DISC-ALN', 'DISC-GRAN', 'DISC-MAX', 'DISC-ZERO',
+        'STATE',
+        'PARTFLAGS',
+        'LABEL',
         'SCHED',
         'VENDOR',
         'RAND',
         'REV',
-        'OPT-IO',
         'WSAME',
     ]
 
     sort_order = {key: value for value, key in enumerate([
+        'displayname',
+        'by-vdev',
+        'location',
+
         'name',
         'KNAME',
-        'by-vdev',
         'zpath',
         'MOUNTPOINT',
+        'FSTYPE',
+        'SIZE',
         'TRAN',
         'HCTL',
         'MAJ:MIN',
-        'SIZE',
         'OWNER',
         'GROUP',
         'MODE',
@@ -156,9 +175,44 @@ def main():
         # 'SERIAL',
     ])}
 
+    # munge
+    def dname_for(row, *, last):
+        vdev = '•{}'.format(row['by-vdev']) if (row.get('by-vdev') and
+                                                row['name'] not in partitions) else ''
+        typ = '•({})'.format(row['TYPE']) if row['TYPE'] not in ('disk', 'part', 'md') else ''
+
+        if row['name'] in partitions:
+            box = ' └─ ' if last else ' ├─ '
+            return box + row['name'] + vdev + typ
+        else:
+            return row['name'] + vdev + typ
+
+    def loc_for(row):
+        zpath = row.get('zpath', '')
+        mnt = row.get('MOUNTPOINT', '')
+        holders = '[{}]'.format(', '.join(row['holders'])) if row.get('holders') else ''
+
+        assert not (zpath and mnt)
+        return ' '.join(x for x in (zpath, mnt, holders) if x)
+
+    for ii, row in enumerate(rows):
+        try:
+            last = rows[ii+1]['name'] in devices
+        except IndexError:
+            last = True
+        row['displayname'] = dname_for(row, last=last)
+        if row['name'] in partitions:
+            row['by-vdev'] = ''
+
+        if row['FSTYPE'] in ('', 'linux_raid_member', 'zfs_member'):
+            row['FSTYPE'] = ''
+
+        row['location'] = loc_for(row)
+
+    # figure out labels
     missing_labels = all_labels - set(importance)
 
-    omit = {'MODEL', 'PKNAME'}
+    omit = {'MODEL', 'PKNAME', 'name', 'zpath', 'MOUNTPOINT', 'TYPE', 'by-vdev'}
 
     redundant = set()
     for candidate, reference in (('KNAME', 'name'), ):
@@ -172,6 +226,7 @@ def main():
     NEVER_SAME_FOR_EVERY = ('SIZE',)
     running_width = 0
     _, width_limit = terminal_size()
+    width_limit -= 1
 
     for label in importance:
         if label in omit:
@@ -248,6 +303,8 @@ def by_dev_disk(kind, results):
 def print_table(width_labels, rows, highlights):
     format_options = {
         'name': '<',
+        'displayname': '<',
+        'location': '<',
         'zpool': '>',
         'by-vdev': '>',
         'by-id': '<',
@@ -263,8 +320,17 @@ def print_table(width_labels, rows, highlights):
             fmt = '>' + str(w)
         return fmt
 
+    def value_to_str_bullets(r, l, width):
+        s = value_to_str(r, l)
+        if '•' in s:
+            a, b = s.split('•')
+            sep = ' ' * (width - len(a) - len(b))
+            return a + sep + b
+        else:
+            return s
+
     def print_row(r, xform):
-        cells = ("{0:{fmt}}".format(xform(r,l), fmt=format(l,w))
+        cells = ("{0:{fmt}}".format(xform(r,l,width=w), fmt=format(l,w))
                  for w, l in width_labels)
         line = ' '.join(cells)
 
@@ -276,7 +342,7 @@ def print_table(width_labels, rows, highlights):
 
     print_row({l: l for w, l in width_labels}, header)
     for r in rows:
-        print_row(r, value_to_str)
+        print_row(r, value_to_str_bullets)
 
 def apply_filters(devices, filters):
     for f in filters:
