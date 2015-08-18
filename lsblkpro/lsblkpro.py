@@ -143,57 +143,7 @@ def header(_, l, width=None):
     else:
         return l
 
-
-def main():
-    args = {'all': False}
-
-    # xxx pull in /dev/zvol/*/*
-    devices, partitions = data.get_data(args)
-
-    # compute rows (each device followed by its partitions)
-    rows = []
-    for device in sorted(devices.values(), key=operator.itemgetter('name')):
-        rows.append(device)
-        if device.get('zpath'):
-            continue  # xxx optionally not filter zpool drive partitions
-        for partname in device['partitions']:
-            part = partitions[partname]
-            assert part['PKNAME'] == device['name']
-            rows.append(part)
-
-    # munge
-    def display_name_for(row, *, last):
-        vdev = '•{}'.format(row['by-vdev']) if (row.get('by-vdev') and
-                                                row['name'] not in partitions) else ''
-        typ = '•({})'.format(row['TYPE']) if row['TYPE'] not in ('disk', 'part', 'md') else ''
-
-        if row['name'] in partitions:
-            box = ' └─ ' if last else ' ├─ '
-            return box + row['name'] + vdev + typ
-        else:
-            return row['name'] + vdev + typ
-
-    def location_for(row):
-        zpath = row.get('zpath', '')
-        mnt = row.get('MOUNTPOINT', '')
-        holders = '[{}]'.format(', '.join(row['holders'])) if row.get('holders') else ''
-
-        assert not (zpath and mnt)
-        return ' '.join(x for x in (zpath, mnt, holders) if x)
-
-    for ii, row in enumerate(rows):
-        try:
-            last = rows[ii+1]['name'] in devices
-        except IndexError:
-            last = True
-        row['displayname'] = display_name_for(row, last=last)
-        if row['name'] in partitions:
-            row['by-vdev'] = ''
-        if row['FSTYPE'] in ('', 'linux_raid_member', 'zfs_member'):
-            row['FSTYPE'] = ''
-        row['location'] = location_for(row)
-
-    # figure out labels
+def figure_out_labels(rows):
     omit = {
         'PKNAME', 'name', 'zpath', 'MOUNTPOINT', 'TYPE', 'by-vdev', 'holders', 'partitions', # used by munge
         'major', 'minor',  'size', # xxx
@@ -230,50 +180,51 @@ def main():
             val = values_in_this_column.pop()
             every_device_has.append((label, val))
 
-    # pre-print
-    if every_device_has:
-        print("Every device has these fields:")
-        lwidth = max(len(l) for l, _ in every_device_has)
-        for l, v in every_device_has:
-            print("  {0:{lwidth}} = {1}".format(l, v, lwidth=lwidth))
-        print()
+    return width_label_pairs, every_device_has, omit, overflow
 
-    # labels in `rows` not in IMPORTANCE or omit
-    all_labels = set()
-    for row in rows:  # victoresque
-        all_labels |= row.keys()
+def munge(rows, devices, partitions):
+    def display_name_for(row, *, last):
+        vdev = '•{}'.format(row['by-vdev']) if (row.get('by-vdev') and
+                                                row['name'] not in partitions) else ''
+        typ = '•({})'.format(row['TYPE']) if row['TYPE'] not in ('disk', 'part', 'md') else ''
 
-    missing_labels = all_labels - set(IMPORTANCE) - omit
-    if missing_labels:
-        print("Missing labels:\n  {}\n".format(sorted(missing_labels)))
-
-    if overflow:
-        print("Overflowing labels:\n  {}\n".format(sorted(overflow)))
-
-    # print
-    def column_order(elt):
-        w, l = elt
-        if l in SORT_ORDER:
-            return SORT_ORDER[l]
+        if row['name'] in partitions:
+            box = ' └─ ' if last else ' ├─ '
+            return box + row['name'] + vdev + typ
         else:
-            return w + 1000 # shorter ones first
+            return row['name'] + vdev + typ
 
-    width_label_pairs.sort(key=column_order)
-    print_table(width_label_pairs, rows, [])
+    def location_for(row):
+        zpath = row.get('zpath', '')
+        mnt = row.get('MOUNTPOINT', '')
+        holders = '[{}]'.format(', '.join(row['holders'])) if row.get('holders') else ''
 
-###
+        assert not (zpath and mnt)
+        return ' '.join(x for x in (zpath, mnt, holders) if x)
+
+    for ii, row in enumerate(rows):
+        try:
+            last = rows[ii+1]['name'] in devices
+        except IndexError:
+            last = True
+        row['displayname'] = display_name_for(row, last=last)
+        if row['name'] in partitions:
+            row['by-vdev'] = ''
+        if row['FSTYPE'] in ('', 'linux_raid_member', 'zfs_member'):
+            row['FSTYPE'] = ''
+        row['location'] = location_for(row)
 
 def print_table(width_label_pairs, rows, highlights):
     format_options = {
-        #'name': '<',
         'displayname': '<',
         'location': '<',
-        #'zpool': '>',
         'TRAN': '>',
         'HCTL': '<',
-        #'by-vdev': '>',
         'by-id': '<',
         'by-path': '<',
+        #'name': '<',
+        #'zpool': '>',
+        #'by-vdev': '>',
         #'MOUNTPOINT': '<',
         }
 
@@ -308,6 +259,61 @@ def print_table(width_label_pairs, rows, highlights):
     print_row({l: l for w, l in width_label_pairs}, header)
     for r in rows:
         print_row(r, value_to_str_bullets)
+
+def main():
+    args = {'all': False}
+
+    # xxx pull in /dev/zvol/*/*
+    devices, partitions = data.get_data(args)
+
+    # compute rows (each device followed by its partitions)
+    rows = []
+    for device in sorted(devices.values(), key=operator.itemgetter('name')):
+        rows.append(device)
+        if device.get('zpath'):
+            continue  # xxx optionally not filter zpool drive partitions
+        for partname in device['partitions']:
+            part = partitions[partname]
+            assert part['PKNAME'] == device['name']
+            rows.append(part)
+
+    munge(rows, devices, partitions)
+
+    # figure out labels
+    width_label_pairs, every_device_has, omit, overflow = figure_out_labels(rows)
+
+    # pre-print
+    if every_device_has:
+        print("Every device has these fields:")
+        lwidth = max(len(l) for l, _ in every_device_has)
+        for l, v in every_device_has:
+            print("  {0:{lwidth}} = {1}".format(l, v, lwidth=lwidth))
+        print()
+
+    # labels in `rows` not in IMPORTANCE or omit
+    all_labels = set()
+    for row in rows:  # victoresque
+        all_labels |= row.keys()
+
+    missing_labels = all_labels - set(IMPORTANCE) - omit
+    if missing_labels:
+        print("Missing labels:\n  {}\n".format(sorted(missing_labels)))
+
+    if overflow:
+        print("Overflowing labels:\n  {}\n".format(sorted(overflow)))
+
+    # print
+    def column_order(elt):
+        w, l = elt
+        if l in SORT_ORDER:
+            return SORT_ORDER[l]
+        else:
+            return w + 1000 # shorter ones first
+
+    width_label_pairs.sort(key=column_order)
+    print_table(width_label_pairs, rows, [])
+
+###
 
 def apply_filters(devices, filters):
     for f in filters:
