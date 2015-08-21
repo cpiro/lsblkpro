@@ -241,8 +241,7 @@ def munge(rows, devices, partitions):
                                            else '')
 
         if row['name'] in partitions:
-            box = ' └─ ' if last else ' ├─ '
-            return box + row['name'] + vdev + typ
+            return (BOX_END if last else BOX_MID) + row['name'] + vdev + typ
         else:
             return row['name'] + vdev + typ
 
@@ -345,8 +344,16 @@ def main():
                         help="include ram* and loop* devices, and include partitions of zpool drives")
     parser.add_argument("-A", "--all-columns", action='store_true',
                         help="include all columns, appropriate to pipe to `less -S`")
+    parser.add_argument("--ascii", action='store_true',
+                        help="use ASCII characters for tree formatting")
 
     args = parser.parse_args()
+
+    global BOX_MID, BOX_END
+    if sys.stdout.encoding == 'UTF-8' and not args.ascii:
+        BOX_MID, BOX_END = ' ├─ ', ' └─ '
+    else:
+        BOX_MID, BOX_END = ' |- ', ' `- '
 
     # xxx pull in /dev/zvol/*/*
     devices, partitions, missing_from_lsblk = data.get_data(args)

@@ -1,9 +1,9 @@
-CLI_UTILS_ENCODING = 'utf-8'
-
 import os
 import sys
 import re
 import subprocess
+
+CLI_UTILS_ENCODING = sys.stdout.encoding
 
 def lsblk(args):
     cmd = ['lsblk']
