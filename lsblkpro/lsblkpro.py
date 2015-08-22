@@ -106,6 +106,13 @@ SORT_ORDER = {key: value for value, key in enumerate([
     # 'SERIAL',
     ])}
 
+DUPLICATES = (
+    ('KNAME', 'name'),
+    ('by-partuuid', 'PARTUUID'),
+    ('by-uuid', 'UUID'),
+    ('by-partlabel', 'PARTLABEL'),
+)
+
 def terminal_size():
     h, w, hp, wp = struct.unpack('HHHH',
                        fcntl.ioctl(0, termios.TIOCGWINSZ,
@@ -187,8 +194,8 @@ def figure_out_labels(rows, args):
     omit.update(args.exclude)
 
     every_device_has = []
-    for candidate, reference in (('KNAME', 'name'), ):
-        if all(row[candidate] == row[reference] for row in rows):
+    for candidate, reference in DUPLICATES:
+        if all(row.get(candidate, '') == row.get(reference, '') for row in rows):
             every_device_has.append((candidate, '<{}>'.format(reference)))
             omit.add(candidate)
 
@@ -226,7 +233,8 @@ def figure_out_labels(rows, args):
                 width_label_pairs.append((width, label))
         else:
             val = values_in_this_column.pop()
-            every_device_has.append((label, val))
+            if val:
+                every_device_has.append((label, val))
 
     return width_label_pairs, every_device_has, omit, overflow
 
