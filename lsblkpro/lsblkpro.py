@@ -186,7 +186,7 @@ def apply_filters(rows, args):
 
 def figure_out_labels(rows, args):
     omit = {
-        'PKNAME', 'name', 'zpath', 'MOUNTPOINT', 'TYPE', 'by-vdev', 'holders', 'partitions', # used by munge
+        'NAME', 'PKNAME', 'name', 'zpath', 'MOUNTPOINT', 'TYPE', 'by-vdev', 'holders', 'partitions', # used by munge
         'major', 'minor',  'size', # xxx
         'MODEL', # boring
     }
@@ -240,6 +240,9 @@ def figure_out_labels(rows, args):
 
 def munge(rows, devices, partitions, zvols):
     def display_name_for(row, *, last):
+        name = row['KNAME']
+        if row['NAME'] != name:
+            name += '={}'.format(row['NAME'])
         vdev = ('•{}'.format(row['by-vdev']) if (row.get('by-vdev') and
                                                  row['name'] not in partitions)
                                              else '')
@@ -249,9 +252,9 @@ def munge(rows, devices, partitions, zvols):
                                            else '')
 
         if row['name'] in partitions:
-            return (BOX_END if last else BOX_MID) + row['name'] + vdev + typ
+            return (BOX_END if last else BOX_MID) + name + vdev + typ
         else:
-            return row['name'] + vdev + typ
+            return name + vdev + typ
 
     def location_for(row):
         zpath = row.get('zpath', '')
@@ -259,7 +262,7 @@ def munge(rows, devices, partitions, zvols):
         zvol = zvols.get(row['name'], '')
         holders = '[{}]'.format(', '.join(row['holders'])) if row.get('holders') else ''
         assert sum(1 for x in (zpath, mnt, zvol) if x) <= 1
-        return ' '.join(x for x in (zpath, mnt, holders, zvol) if x)
+        return ' '.join(x for x in (zpath, mnt, zvol, holders) if x)
 
     for ii, row in enumerate(rows):
         try:
