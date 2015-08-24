@@ -256,10 +256,10 @@ def munge(rows, devices, partitions, zvols):
     def location_for(row):
         zpath = row.get('zpath', '')
         mnt = row.get('MOUNTPOINT', '')
+        zvol = zvols.get(row['name'], '')
         holders = '[{}]'.format(', '.join(row['holders'])) if row.get('holders') else ''
-
-        assert not (zpath and mnt)
-        return ' '.join(x for x in (zpath, mnt, holders) if x)
+        assert sum(1 for x in (zpath, mnt, zvol) if x) <= 1
+        return ' '.join(x for x in (zpath, mnt, holders, zvol) if x)
 
     for ii, row in enumerate(rows):
         try:
