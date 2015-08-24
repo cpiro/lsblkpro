@@ -98,6 +98,19 @@ def walk_device(device):
 
     return row
 
+def walk_dev_zvol():
+    if not os.path.exists('/dev/zvol'):
+        return
+    for pool in os.listdir('/dev/zvol'):
+        poolpath = os.path.join('/dev/zvol', pool)
+        for vol in os.listdir(poolpath):
+            volpath = os.path.join(poolpath, vol)
+            devpath = os.path.abspath(os.path.join(os.path.dirname(volpath),
+                                                   os.readlink(volpath)))
+            assert devpath.startswith('/dev/')
+            name = devpath[5:]
+            yield name, '{}/{}'.format(pool, vol)
+
 def walk_partition(device, part):
     row = {'name': part}
     path = os.path.join('/sys', 'block', device, part)
