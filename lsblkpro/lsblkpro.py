@@ -238,7 +238,7 @@ def figure_out_labels(rows, args):
 
     return width_label_pairs, every_device_has, omit, overflow
 
-def munge(rows, devices, partitions):
+def munge(rows, devices, partitions, zvols):
     def display_name_for(row, *, last):
         vdev = ('•{}'.format(row['by-vdev']) if (row.get('by-vdev') and
                                                  row['name'] not in partitions)
@@ -363,8 +363,8 @@ def main():
     else:
         BOX_MID, BOX_END = ' |- ', ' `- '
 
-    # xxx pull in /dev/zvol/*/*
     devices, partitions, missing_from_lsblk = data.get_data(args)
+    zvols = {name: zvol for name, zvol in data.walk_dev_zvol()}
 
     # compute rows (each device followed by its partitions)
     rows = []
@@ -386,7 +386,7 @@ def main():
     rows, filter_log = apply_filters(rows, args)
 
     # munge
-    munge(rows, devices, partitions)
+    munge(rows, devices, partitions, zvols)
     munge_highlights(rows, args.highlight)
 
     # figure out labels
