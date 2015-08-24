@@ -333,10 +333,6 @@ def print_table(width_label_pairs, rows):
         print_row(r, value_to_str_bullets)
 
 def main():
-    if not sys.platform.startswith('linux'):
-        print("{}: fatal error: Linux is required".format(os.path.basename(sys.argv[0])))
-        sys.exit(1)
-
     # argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("-d", "--only-devices", action='store_true',
@@ -359,8 +355,16 @@ def main():
                         help="include all columns, appropriate to pipe to `less -S`")
     parser.add_argument("--ascii", action='store_true',
                         help="use ASCII characters for tree formatting")
+    parser.add_argument("--store-data", action='store_true',
+                        help="")
+    parser.add_argument("--load-data", action='store_true',
+                        help="")
 
     args = parser.parse_args()
+
+    if not (sys.platform.startswith('linux') or args.load_data):
+        print("{}: fatal error: Linux is required".format(os.path.basename(sys.argv[0])))
+        sys.exit(1)
 
     global BOX_MID, BOX_END
     if sys.stdout.encoding == 'UTF-8' and not args.ascii:
@@ -368,8 +372,29 @@ def main():
     else:
         BOX_MID, BOX_END = ' |- ', ' `- '
 
-    devices, partitions, missing_from_lsblk = data.get_data(args)
-    zvols = {name: zvol for name, zvol in data.walk_dev_zvol()}
+    if args.load_data:
+        import pickle
+        with open('data', 'rb') as f:
+            data = pickle.load(f)
+            devices = data['devices']
+            partitions = data['partitions']
+            missing_from_lsblk = data['missing_from_lsblk']
+            zvols = data['zvols']
+    else:
+        devices, partitions, missing_from_lsblk = data.get_data(args)
+        zvols = {name: zvol for name, zvol in data.walk_dev_zvol()}
+
+    if args.store_data:
+        assert not args.load_data
+        import pickle
+        with open('data', 'wb') as f:
+            pickle.dump({
+                'devices': devices,
+                'partitions': partitions,
+                'missing_from_lsblk': missing_from_lsblk,
+                'zvols': zvols,
+            }, f)
+        sys.exit(0)
 
     # compute rows (each device followed by its partitions)
     rows = []
