@@ -4,6 +4,8 @@
 # xxx package desc should include /sys/block
 # 3to2
 
+# xxx smart sizes
+# xxx sort by holders
 # xxx optionally trunc [...] long cells when most of column is short
 
 import os
