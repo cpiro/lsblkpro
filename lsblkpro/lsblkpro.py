@@ -163,6 +163,7 @@ def width_for_column(label, rows):
         max(len(value_to_str(row, label)) for row in rows)
     )
 
+# xxx inside
 def dev_name_split(device):
     def to_int_maybe(p):
         try:
@@ -182,6 +183,7 @@ def add_ordering_from_iter(ordering, iterable):
         last = cur
 
 class DeviceCollection:
+    # xxx lift non-lsblk data (holders, etc.) all the way out of data module
     def __init__(self, devices, partitions, missing_from_lsblk, zvols):
         self._devices = devices
         self._partitions = partitions
@@ -190,13 +192,20 @@ class DeviceCollection:
 
         self._device_objects = {devname: Device(devname, collection=self)
                                 for devname in self._devices.keys()}
+        self._partition_objects = {partname: Partition(partname, collection=self)
+                                   for partname in self._partitions.keys()}
         self.devices = [device.name for device in
                         sorted((device for device in self._device_objects.values()),
                                key=operator.attrgetter('sort_name'))]
+        self.partitions = [partition.name for partition in
+                           self._partition_objects.values()]
         self.prefixes = {device.prefix for device in self._device_objects.values()}
 
     def device(self, devname):
         return self._device_objects[devname]
+
+    def partition(self, partname):
+        return self._partition_objects[partname]
 
     def go(self):
         print('go')
@@ -221,25 +230,26 @@ class Device:
     @property
     def partitions(self):
         parts = []
-        device = self.collection._devices[self.name]
-        for partname in device['partitions']:
-            part = self.collection._partitions[partname]
-            assert part['PKNAME'] == device['name']
-            parts.append(part['name'])
+        _device = self.collection._devices[self.name]
+        for partname in _device['partitions']:
+            _part = self.collection._partitions[partname]
+            assert _part['PKNAME'] == _device['name']
+            assert _part['name'] == partname
+            parts.append(partname)
         return parts
 
     @property
     def holders(self):
         holders = []
 
-        dev = self.collection._devices[self.name]
-        holders.extend(dev.get('holders', []))
+        _dev = self.collection._devices[self.name]
+        holders.extend(_dev.get('holders', []))
 
         for partname in self.partitions:
-            part = self.collection._partitions[partname]
-            if part.get('holders'):
-                holders.extend(part['holders'])
-        assert all(holder in self.collection._devices for holder in holders) # dubious
+            part = self.collection.partition(partname)
+            holders.extend(part.holders)
+
+        assert all(holder in self.collection.devices for holder in holders) # dubious
         return holders
 
     @property
@@ -259,6 +269,16 @@ class Device:
             assert l in string.ascii_letters
             num = num * 26 + (ord(l.lower()) - ord('a')) + 1
         return num - 1
+
+class Partition:
+    def __init__(self, name, *, collection):
+        self.name = name
+        self.collection = collection
+
+    @property
+    def holders(self):
+        _part = self.collection._partitions[self.name]
+        return _part.get('holders', [])
 
 def display_order_for(devc, args):
     # xxx if args.sorts, override everything
