@@ -186,8 +186,8 @@ class DeviceCollection:
         self._devices = devices
         self._partitions = partitions
 
-        l = [Device(d) for d in self._devices.keys()]
-        self.devices = sorted(l, key=operator.attrgetter('sortable'))
+        self.devices = sorted([Device(d, collection=self) for d in self._devices.keys()],
+                              key=operator.attrgetter('sortable'))
         self.prefixes = {d.prefix for d in self.devices}
 
     def ordering(self):
@@ -198,10 +198,18 @@ class DeviceCollection:
             add_ordering_from_iter(ordering, group)
 
         for d in self.devices:
-            pass
-        print(ordering)
+            for h in d.holders:
+                # holders come after the devices they hold
+                ordering[h].add(d.name)
 
-class Device(str):
+        print(ordering)
+        #sys.exit(0)
+
+class Device:
+    def __init__(self, name, *, collection):
+        self.name = name
+        self.collection = collection
+
     @staticmethod
     def col2num(col):
         num = 0
@@ -212,18 +220,48 @@ class Device(str):
 
     @property
     def sortable(self):
-        tup = list(dev_name_split(self))
+        tup = list(dev_name_split(self.name))
         if isinstance(tup[1], str):
             tup[1] = Device.col2num(tup[1]) - 1
         return tup
 
     @property
     def parts(self):
-        return dev_name_split(self)
+        return dev_name_split(self.name)
+
+    @property
+    def partitions(self):
+        parts = []
+        device = self.collection._devices[self.name]
+        for partname in device['partitions']:
+            part = self.collection._partitions[partname]
+            assert part['PKNAME'] == device['name']
+            parts.append(part['name'])
+        return parts
+
+    @property
+    def holders(self):
+        holders = []
+
+        dev = self.collection._devices[self.name]
+        holders.extend(dev.get('holders', []))
+
+        for partname in self.partitions:
+            part = self.collection._partitions[partname]
+            if part.get('holders'):
+                holders.extend(part['holders'])
+        assert all(holder in self.collection._devices for holder in holders) # dubious
+        return holders
 
     @property
     def prefix(self):
         return self.parts[0]
+
+    def __str__(self):
+        return self.name
+
+    def __repr__(self):
+        return repr(self.name)
 
 def display_order_for(devices, partitions, missing_from_lsblk, zvols, args):
     # xxx if args.sorts, override everything
