@@ -188,27 +188,18 @@ class DeviceCollection:
         self._missing_from_lsblk = missing_from_lsblk
         self._zvols = zvols
 
-        self.devices = sorted([Device(d, collection=self) for d in self._devices.keys()],
-                              key=operator.attrgetter('sortable'))
-        self.prefixes = {d.prefix for d in self.devices}
+        self._device_objects = {devname: Device(devname, collection=self)
+                                for devname in self._devices.keys()}
+        self.devices = [device.name for device in
+                        sorted((device for device in self._device_objects.values()),
+                               key=operator.attrgetter('sortable'))]
+        self.prefixes = {device.prefix for device in self._device_objects.values()}
 
-    def _device_ordering(self):
-        ordering = collections.defaultdict(set)
+    def device(self, devname):
+        return self._device_objects[devname]
 
-        # devices of the same type (hd, sd, md, zd, etc) in their proper order
-        for key, group in itertools.groupby(self.devices, operator.attrgetter('prefix')):
-            pass #add_ordering_from_iter(ordering, (device.name for device in group))
-
-        for device in self.devices:
-            ordering[device.name] # make sure every device has a node
-            for holder in device.holders:
-                # holders come after the devices they hold
-                ordering[holder].add(device.name)
-        print(ordering)
-        return ordering
-
-    def devices_ordered(self):
-        return toposort.toposort_flatten(self._device_ordering())
+    def go(self):
+        print('go')
 
 class Device:
     def __init__(self, name, *, collection):
@@ -271,8 +262,7 @@ class Device:
 def display_order_for(devc, args):
     # xxx if args.sorts, override everything
 
-    print(devc.devices_ordered())
-
+    devc.go()
     rows = []
 
     def device_order(device):
