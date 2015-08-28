@@ -192,20 +192,23 @@ class DeviceCollection:
                               key=operator.attrgetter('sortable'))
         self.prefixes = {d.prefix for d in self.devices}
 
-    def ordering(self):
+    def _device_ordering(self):
         ordering = collections.defaultdict(set)
 
         # devices of the same type (hd, sd, md, zd, etc) in their proper order
         for key, group in itertools.groupby(self.devices, operator.attrgetter('prefix')):
-            add_ordering_from_iter(ordering, group)
+            pass #add_ordering_from_iter(ordering, (device.name for device in group))
 
-        for d in self.devices:
-            for h in d.holders:
+        for device in self.devices:
+            ordering[device.name] # make sure every device has a node
+            for holder in device.holders:
                 # holders come after the devices they hold
-                ordering[h].add(d.name)
-
+                ordering[holder].add(device.name)
         print(ordering)
-        #sys.exit(0)
+        return ordering
+
+    def devices_ordered(self):
+        return toposort.toposort_flatten(self._device_ordering())
 
 class Device:
     def __init__(self, name, *, collection):
@@ -259,16 +262,16 @@ class Device:
     def prefix(self):
         return self.parts[0]
 
-    def __str__(self):
-        return self.name
+#    def __str__(self):
+#        return self.name
 
-    def __repr__(self):
-        return repr(self.name)
+#    def __repr__(self):
+#        return repr(self.name)
 
 def display_order_for(devc, args):
     # xxx if args.sorts, override everything
 
-    devc.ordering()
+    print(devc.devices_ordered())
 
     rows = []
 
