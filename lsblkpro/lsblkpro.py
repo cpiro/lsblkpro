@@ -192,7 +192,7 @@ class DeviceCollection:
                                 for devname in self._devices.keys()}
         self.devices = [device.name for device in
                         sorted((device for device in self._device_objects.values()),
-                               key=operator.attrgetter('sortable'))]
+                               key=operator.attrgetter('sort_name'))]
         self.prefixes = {device.prefix for device in self._device_objects.values()}
 
     def device(self, devname):
@@ -200,6 +200,11 @@ class DeviceCollection:
 
     def go(self):
         print('go')
+
+    # def table_order_devices(self):
+    #     todo = self.devices[:]
+    #     while todo:
+    #         pass
 
 class Device:
     def __init__(self, name, *, collection):
@@ -215,15 +220,11 @@ class Device:
         return num
 
     @property
-    def sortable(self):
+    def sort_name(self):
         tup = list(dev_name_split(self.name))
         if isinstance(tup[1], str):
             tup[1] = Device.col2num(tup[1]) - 1
         return tup
-
-    @property
-    def parts(self):
-        return dev_name_split(self.name)
 
     @property
     def partitions(self):
@@ -250,14 +251,13 @@ class Device:
         return holders
 
     @property
+    def name_parts(self):
+        return dev_name_split(self.name)
+
+    @property
     def prefix(self):
-        return self.parts[0]
+        return self.name_parts[0]
 
-#    def __str__(self):
-#        return self.name
-
-#    def __repr__(self):
-#        return repr(self.name)
 
 def display_order_for(devc, args):
     # xxx if args.sorts, override everything
