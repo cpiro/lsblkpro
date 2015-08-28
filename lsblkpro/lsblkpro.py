@@ -211,15 +211,6 @@ class Device:
         self.name = name
         self.collection = collection
 
-    @staticmethod
-    def device_letters_to_int(letters):
-        """'z' -> 25, 'az' -> 26"""
-        num = 0
-        for l in letters:
-            assert l in string.ascii_letters
-            num = num * 26 + (ord(l.lower()) - ord('a')) + 1
-        return num - 1
-
     @property
     def sort_name(self):
         tup = list(dev_name_split(self.name))
@@ -259,6 +250,14 @@ class Device:
     def prefix(self):
         return self.name_parts[0]
 
+    @staticmethod
+    def device_letters_to_int(letters):
+        """'z' -> 25, 'az' -> 26"""
+        num = 0
+        for l in letters:
+            assert l in string.ascii_letters
+            num = num * 26 + (ord(l.lower()) - ord('a')) + 1
+        return num - 1
 
 def display_order_for(devc, args):
     # xxx if args.sorts, override everything
