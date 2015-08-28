@@ -277,19 +277,19 @@ def display_order_for(devc, args):
     devc.go()
     rows = []
 
-    def device_order(device):
-        lex = [device.get(key, '') for key in args.sorts]
-        lex.append(dev_name_split(device['name']))
+    def device_order(_device):
+        lex = [_device.get(key, '') for key in args.sorts]
+        lex.append(dev_name_split(_device['name']))
         return lex
 
-    for device in sorted(devc._devices.values(), key=device_order):
-        rows.append(device)
-        if (device.get('zpath') and not args.all_devices) or args.only_devices:
+    for _device in sorted(devc._devices.values(), key=device_order):
+        rows.append(_device)
+        if (_device.get('zpath') and not args.all_devices) or args.only_devices:
             continue
-        for partname in device['partitions']:
-            part = devc._partitions[partname]
-            assert part['PKNAME'] == device['name']
-            rows.append(part)
+        for partname in _device['partitions']:
+            _part = devc._partitions[partname]
+            assert _part['PKNAME'] == _device['name']
+            rows.append(_part)
 
     return rows
 
