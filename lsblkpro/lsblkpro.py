@@ -182,22 +182,24 @@ def add_ordering_from_iter(ordering, iterable):
         last = cur
 
 class DeviceCollection:
-    def __init__(self, devices):
+    def __init__(self, devices, partitions):
         self._devices = devices
+        self._partitions = partitions
 
-    @property
-    def prefixes(self):
-        return {d.prefix for d in self.devices}
-
-    @property
-    def devices(self):
         l = [Device(d) for d in self._devices.keys()]
-        return sorted(l, key=operator.attrgetter('sortable'))
+        self.devices = sorted(l, key=operator.attrgetter('sortable'))
+        self.prefixes = {d.prefix for d in self.devices}
 
-    def go(self):
+    def ordering(self):
+        ordering = collections.defaultdict(set)
+
+        # devices of the same type (hd, sd, md, zd, etc) in their proper order
         for key, group in itertools.groupby(self.devices, operator.attrgetter('prefix')):
-            for dev in group:
-                print(key, dev)
+            add_ordering_from_iter(ordering, group)
+
+        for d in self.devices:
+            pass
+        print(ordering)
 
 class Device(str):
     @staticmethod
@@ -225,24 +227,25 @@ class Device(str):
 
 def display_order_for(devices, partitions, missing_from_lsblk, zvols, args):
     # xxx if args.sorts, override everything
-    # def device_order(device):
-    #     lex = [device.get(key, '') for key in args.sorts]
-    #     lex.append(dev_name_split(device['name']))
-    #     return lex
 
-    devc = DeviceCollection(devices)
-    devc.go()
+    devc = DeviceCollection(devices, partitions)
+    devc.ordering()
 
     rows = []
 
-        # rows.append(device)
-        # if (device.get('zpath') and not args.all_devices) or args.only_devices:
-        #     continue
-        # for partname in device['partitions']:
-        #     part = partitions[partname]
-        #     assert part['PKNAME'] == device['name']
-        #     rows.append(part)
-    sys.exit(0)
+    def device_order(device):
+        lex = [device.get(key, '') for key in args.sorts]
+        lex.append(dev_name_split(device['name']))
+        return lex
+
+    for device in sorted(devices.values(), key=device_order):
+        rows.append(device)
+        if (device.get('zpath') and not args.all_devices) or args.only_devices:
+            continue
+        for partname in device['partitions']:
+            part = partitions[partname]
+            assert part['PKNAME'] == device['name']
+            rows.append(part)
 
     return rows
 
