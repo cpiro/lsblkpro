@@ -212,18 +212,19 @@ class Device:
         self.collection = collection
 
     @staticmethod
-    def col2num(col):
+    def device_letters_to_int(letters):
+        """'z' -> 25, 'az' -> 26"""
         num = 0
-        for c in col:
-            if c in string.ascii_letters:
-                num = num * 26 + (ord(c.upper()) - ord('A')) + 1
-        return num
+        for l in letters:
+            assert l in string.ascii_letters
+            num = num * 26 + (ord(l.lower()) - ord('a')) + 1
+        return num - 1
 
     @property
     def sort_name(self):
         tup = list(dev_name_split(self.name))
         if isinstance(tup[1], str):
-            tup[1] = Device.col2num(tup[1]) - 1
+            tup[1] = Device.device_letters_to_int(tup[1])
         return tup
 
     @property
