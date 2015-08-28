@@ -198,13 +198,26 @@ class DeviceCollection:
     def partition(self, partname):
         return self._partition_objects[partname]
 
-    def go(self):
-        print('go')
+    def devices_display_order(self):
+        todo = set(self.devices)
 
-    # def table_order_devices(self):
-    #     todo = self.devices[:]
-    #     while todo:
-    #         pass
+        held_by = collections.defaultdict(list)
+        # xxx sort device names at this point instead of relying on self.devices's order
+        for devname in self.devices:
+            for holder in self.device(devname).holders:
+                held_by[holder].append(devname)
+                todo.discard(holder)
+                todo.discard(devname) # only remove if this device has holders
+
+        holder_groups = [(tuple(group), holder) for holder, group in held_by.items()]
+        holder_groups.extend(((devname,), ()) for devname in todo)
+
+        output = []
+        for group, holder in sorted(holder_groups, key=lambda elt: elt[0][0]):
+            output.extend(group)
+            if holder:
+                output.append(holder)
+        return output
 
 class Device:
     def __init__(self, name, *, collection):
@@ -231,6 +244,7 @@ class Device:
 
     @property
     def holders(self):
+        # recursive holders
         holders = []
 
         _dev = self.collection._devices[self.name]
@@ -274,8 +288,13 @@ class Partition:
 def display_order_for(devc, args):
     # xxx if args.sorts, override everything
 
-    devc.go()
     rows = []
+    for devname in devc.devices_display_order():
+        rows.append(devc._devices[devname])
+        # xxx add partitions
+    return rows
+
+    # xxx
 
     def device_order(_device):
         lex = [_device.get(key, '') for key in args.sorts]
