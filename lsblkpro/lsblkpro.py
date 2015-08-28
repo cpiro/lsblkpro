@@ -24,8 +24,6 @@ import termios
 import pprint
 pp = pprint.pprint
 
-import toposort
-
 from . import data
 
 always_interesting = set('SIZE')
@@ -174,13 +172,6 @@ def dev_name_split(device):
     tup = tuple(to_int_maybe(part) for part in re.findall(r'(?:^[a-z]{2}-?|[a-z]+|\d+)', device))
     assert ''.join(str(part) for part in tup) == device
     return tup
-
-def add_ordering_from_iter(ordering, iterable):
-    last = None
-    for cur in iterable:
-        if last is not None:
-            ordering[cur].add(last)
-        last = cur
 
 class DeviceCollection:
     # xxx lift non-lsblk data (holders, etc.) all the way out of data module
