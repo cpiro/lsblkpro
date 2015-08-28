@@ -12,6 +12,10 @@ import os
 import sys
 import re
 import argparse
+import collections
+import operator
+import itertools
+import string
 
 import struct
 import fcntl
@@ -19,6 +23,8 @@ import termios
 
 import pprint
 pp = pprint.pprint
+
+import toposort
 
 from . import data
 
@@ -164,7 +170,81 @@ def dev_name_split(device):
         except ValueError:
             return p
 
-    return tuple(to_int_maybe(part) for part in re.findall(r'(?:[a-z]+|\d+)', device))
+    tup = tuple(to_int_maybe(part) for part in re.findall(r'(?:^[a-z]{2}-?|[a-z]+|\d+)', device))
+    assert ''.join(str(part) for part in tup) == device
+    return tup
+
+def add_ordering_from_iter(ordering, iterable):
+    last = None
+    for cur in iterable:
+        if last is not None:
+            ordering[cur].add(last)
+        last = cur
+
+class DeviceCollection:
+    def __init__(self, devices):
+        self._devices = devices
+
+    @property
+    def prefixes(self):
+        return {d.prefix for d in self.devices}
+
+    @property
+    def devices(self):
+        l = [Device(d) for d in self._devices.keys()]
+        return sorted(l, key=operator.attrgetter('sortable'))
+
+    def go(self):
+        for key, group in itertools.groupby(self.devices, operator.attrgetter('prefix')):
+            for dev in group:
+                print(key, dev)
+
+class Device(str):
+    @staticmethod
+    def col2num(col):
+        num = 0
+        for c in col:
+            if c in string.ascii_letters:
+                num = num * 26 + (ord(c.upper()) - ord('A')) + 1
+        return num
+
+    @property
+    def sortable(self):
+        tup = list(dev_name_split(self))
+        if isinstance(tup[1], str):
+            tup[1] = Device.col2num(tup[1]) - 1
+        return tup
+
+    @property
+    def parts(self):
+        return dev_name_split(self)
+
+    @property
+    def prefix(self):
+        return self.parts[0]
+
+def display_order_for(devices, partitions, missing_from_lsblk, zvols, args):
+    # xxx if args.sorts, override everything
+    # def device_order(device):
+    #     lex = [device.get(key, '') for key in args.sorts]
+    #     lex.append(dev_name_split(device['name']))
+    #     return lex
+
+    devc = DeviceCollection(devices)
+    devc.go()
+
+    rows = []
+
+        # rows.append(device)
+        # if (device.get('zpath') and not args.all_devices) or args.only_devices:
+        #     continue
+        # for partname in device['partitions']:
+        #     part = partitions[partname]
+        #     assert part['PKNAME'] == device['name']
+        #     rows.append(part)
+    sys.exit(0)
+
+    return rows
 
 def apply_filters(rows, args):
     filter_log = []
@@ -399,22 +479,7 @@ def main():
         sys.exit(0)
 
     # compute rows (each device followed by its partitions)
-    rows = []
-
-    def device_order(device):
-        lex = [device.get(key, '') for key in args.sorts]
-        lex.append(dev_name_split(device['name']))
-        return lex
-
-    for device in sorted(devices.values(), key=device_order):
-        rows.append(device)
-        if (device.get('zpath') and not args.all_devices) or args.only_devices:
-            continue
-        for partname in device['partitions']:
-            part = partitions[partname]
-            assert part['PKNAME'] == device['name']
-            rows.append(part)
-
+    rows = display_order_for(devices, partitions, missing_from_lsblk, zvols, args)
     rows, filter_log = apply_filters(rows, args)
 
     # munge
