@@ -252,7 +252,8 @@ class Device:
 
     @staticmethod
     def device_letters_to_int(letters):
-        """'z' -> 25, 'az' -> 26"""
+        """spreadsheet column letters to integer index from zero
+        e.g. 'a' -> 0, 'z' -> 25, 'aa' -> 26"""
         num = 0
         for l in letters:
             assert l in string.ascii_letters
