@@ -182,9 +182,11 @@ def add_ordering_from_iter(ordering, iterable):
         last = cur
 
 class DeviceCollection:
-    def __init__(self, devices, partitions):
+    def __init__(self, devices, partitions, missing_from_lsblk, zvols):
         self._devices = devices
         self._partitions = partitions
+        self._missing_from_lsblk = missing_from_lsblk
+        self._zvols = zvols
 
         self.devices = sorted([Device(d, collection=self) for d in self._devices.keys()],
                               key=operator.attrgetter('sortable'))
@@ -263,10 +265,9 @@ class Device:
     def __repr__(self):
         return repr(self.name)
 
-def display_order_for(devices, partitions, missing_from_lsblk, zvols, args):
+def display_order_for(devc, args):
     # xxx if args.sorts, override everything
 
-    devc = DeviceCollection(devices, partitions)
     devc.ordering()
 
     rows = []
@@ -276,12 +277,12 @@ def display_order_for(devices, partitions, missing_from_lsblk, zvols, args):
         lex.append(dev_name_split(device['name']))
         return lex
 
-    for device in sorted(devices.values(), key=device_order):
+    for device in sorted(devc._devices.values(), key=device_order):
         rows.append(device)
         if (device.get('zpath') and not args.all_devices) or args.only_devices:
             continue
         for partname in device['partitions']:
-            part = partitions[partname]
+            part = devc._partitions[partname]
             assert part['PKNAME'] == device['name']
             rows.append(part)
 
@@ -520,7 +521,8 @@ def main():
         sys.exit(0)
 
     # compute rows (each device followed by its partitions)
-    rows = display_order_for(devices, partitions, missing_from_lsblk, zvols, args)
+    devc = DeviceCollection(devices, partitions, missing_from_lsblk, zvols)
+    rows = display_order_for(devc, args)
     rows, filter_log = apply_filters(rows, args)
 
     # munge
