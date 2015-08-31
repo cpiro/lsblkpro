@@ -200,7 +200,7 @@ class DeviceCollection:
     def partition(self, partname):
         return self._partition_objects[partname]
 
-    def devices_display_order(self):
+    def devices_smart_order(self):
         todo = set(self.devices)
 
         held_by = collections.defaultdict(list)
@@ -214,12 +214,10 @@ class DeviceCollection:
         holder_groups = [(tuple(group), holder) for holder, group in held_by.items()]
         holder_groups.extend(((devname,), ()) for devname in todo)
 
-        output = []
         for group, holder in sorted(holder_groups, key=lambda elt: elt[0][0]):
-            output.extend(group)
+            yield from group
             if holder:
-                output.append(holder)
-        return output
+                yield holder
 
 class Device:
     def __init__(self, name, *, collection):
@@ -294,9 +292,9 @@ def display_order_for(devc, args):
             lex = [_dev.get(key, '') for key in args.sorts]
             lex.append(dev_name_split(_dev['name']))
             return lex
-        devnames = [_dev['name'] for _dev in sorted(devc._devices.values(), key=device_order)]
+        devnames = (_dev['name'] for _dev in sorted(devc._devices.values(), key=device_order))
     else:
-        devnames = devc.devices_display_order()
+        devnames = devc.devices_smart_order()
 
     for devname in devnames:
         _dev = devc._devices[devname]
