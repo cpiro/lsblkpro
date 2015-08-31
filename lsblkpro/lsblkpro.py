@@ -172,25 +172,17 @@ class DeviceCollection:
         self._missing_from_lsblk = missing_from_lsblk
         self._zvols = zvols
 
-        self._device_objects = {devname: Device(devname, collection=self)
-                                for devname in self._devices.keys()}
-        self._partition_objects = {partname: Partition(partname, collection=self)
-                                   for partname in self._partitions.keys()}
-        self.devices = [device.name for device in
-                        sorted(self._device_objects.values(),
-                               key=operator.attrgetter('sort_name'))]
-        self.partitions = [partition.name for partition in
-                           self._partition_objects.values()]
-        self.missing_from_lsblk = [missing.name for missing in
-                                   sorted((Device(missname, collection=self)
-                                           for missname in self._missing_from_lsblk),
-                                          key=operator.attrgetter('sort_name'))]
+        self.devices = sorted(Device(devname, collection=self)
+                              for devname in self._devices.keys(),
+                              key=operator.attrgetter('sort_name'))
+        self.partitions = [Partition(partname, collection=self)
+                           for partname in self._partitions.keys()]
+        self.missing_from_lsblk = sorted((Device(missname, collection=self)
+                                          for missname in self._missing_from_lsblk),
+                                         key=operator.attrgetter('sort_name'))
 
-    def device(self, devname):
-        return self._device_objects[devname]
-
-    def partition(self, partname):
-        return self._partition_objects[partname]
+        self._devices_by_name = {device.name: device for device in self.devices}
+        self._partitions_by_name = {part.name: part for part in self.partitions}
 
     def devices_specified_order(self, args):
         def specified_order(device):
@@ -199,15 +191,13 @@ class DeviceCollection:
             lex.append(device.name_parts)
             return lex
 
-        return (device.name for device
-                in sorted(self._device_objects.values(), key=specified_order))
+        return sorted(self._devices_by_name.values(), key=specified_order)
 
     def devices_smart_order(self):
-        todo = set(self.devices)
+        todo = {device.name for device in self.devices}
 
         held_by = collections.defaultdict(list)
-        for device in sorted(self._device_objects.values(),
-                             key=operator.attrgetter('sort_name')):
+        for device in sorted(self.devices, key=operator.attrgetter('sort_name')):
             for holder in device.holders:
                 held_by[holder].append(device.name)
                 todo.discard(holder)
