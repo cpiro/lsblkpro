@@ -192,7 +192,6 @@ class DeviceCollection:
                                key=operator.attrgetter('sort_name'))]
         self.partitions = [partition.name for partition in
                            self._partition_objects.values()]
-        self.prefixes = {device.prefix for device in self._device_objects.values()}
 
     def device(self, devname):
         return self._device_objects[devname]
@@ -260,10 +259,6 @@ class Device:
     @property
     def name_parts(self):
         return dev_name_split(self.name)
-
-    @property
-    def prefix(self):
-        return self.name_parts[0]
 
     @staticmethod
     def device_letters_to_int(letters):
