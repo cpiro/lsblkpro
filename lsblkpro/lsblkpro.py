@@ -38,6 +38,7 @@ importance = [
     'by-vdev',
     'zpath',
     'MOUNTPOINT',
+    'size',
     'SIZE',
     'FSTYPE',
     'HCTL',
