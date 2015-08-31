@@ -33,6 +33,7 @@ importance = [
     'location',
 
     'name',
+    'NAME',
     'KNAME',
     'by-vdev',
     'zpath',
@@ -83,6 +84,7 @@ SORT_ORDER = {key: value for value, key in enumerate([
     'location',
 
     'name',
+    'NAME',
     'KNAME',
     'zpath',
     'MOUNTPOINT',
@@ -234,10 +236,10 @@ class Device:
     @property
     def partitions(self):
         parts = []
-        _device = self.collection._devices[self.name]
-        for partname in _device['partitions']:
+        _dev = self.collection._devices[self.name]
+        for partname in _dev['partitions']:
             _part = self.collection._partitions[partname]
-            assert _part['PKNAME'] == _device['name']
+            assert _part['PKNAME'] == _dev['name']
             assert _part['name'] == partname
             parts.append(partname)
         return parts
@@ -286,30 +288,27 @@ class Partition:
         return _part.get('holders', [])
 
 def display_order_for(devc, args):
-    # xxx if args.sorts, override everything
-
     rows = []
-    for devname in devc.devices_display_order():
-        rows.append(devc._devices[devname])
-        # xxx add partitions
-    return rows
+    if args.sorts:
+        def device_order(_dev):
+            lex = [_dev.get(key, '') for key in args.sorts]
+            lex.append(dev_name_split(_dev['name']))
+            return lex
+        devnames = [_dev['name'] for _dev in sorted(devc._devices.values(), key=device_order)]
+    else:
+        devnames = devc.devices_display_order()
 
-    # xxx
-
-    def device_order(_device):
-        lex = [_device.get(key, '') for key in args.sorts]
-        lex.append(dev_name_split(_device['name']))
-        return lex
-
-    for _device in sorted(devc._devices.values(), key=device_order):
-        rows.append(_device)
-        if (_device.get('zpath') and not args.all_devices) or args.only_devices:
+    for devname in devnames:
+        _dev = devc._devices[devname]
+        rows.append(_dev)
+        if args.only_devices:
             continue
-        for partname in _device['partitions']:
+        if (_dev.get('vdev') or _dev.get('zpath')) and not args.all_devices:
+            continue
+        for partname in devc.device(devname).partitions:
             _part = devc._partitions[partname]
-            assert _part['PKNAME'] == _device['name']
+            assert _part['PKNAME'] == _dev['name']
             rows.append(_part)
-
     return rows
 
 def apply_filters(rows, args):
@@ -342,6 +341,7 @@ def figure_out_labels(rows, args):
     }
 
     omit.update(args.exclude)
+    omit -= set(args.include)
 
     every_device_has = []
     for candidate, reference in DUPLICATES:
@@ -451,10 +451,12 @@ def print_table(width_label_pairs, rows):
         'HCTL': '<',
         'by-id': '<',
         'by-path': '<',
-        #'name': '<',
-        #'zpool': '>',
-        #'by-vdev': '>',
-        #'MOUNTPOINT': '<',
+        'name': '<',
+        'NAME': '<',
+        'KNAME': '<',
+        'zpool': '>',
+        'by-vdev': '>',
+        'MOUNTPOINT': '<',
         }
 
     def print_row(r, xform):
@@ -492,7 +494,7 @@ def main():
     # xxx expose field names that aren't labels
     # xxx allow 'size' but not 'SIZE' (which is lsblk's string)
     parser.add_argument("-x", "--sort", action='append', dest='sorts', default=[],
-                        help="sort devices by field(s)")
+                        help="sort devices by field(s); implies -i")
     parser.add_argument("-w", "--where", action='append', dest='filters', default=[],
                         help="filters e.g. NAME=sdc, vdev=a4")
     parser.add_argument("-g", "--highlight",
@@ -509,6 +511,8 @@ def main():
                         help="")
 
     args = parser.parse_args()
+
+    args.include.extend(args.sorts)
 
     if not (sys.platform.startswith('linux') or args.load_data):
         print("{}: fatal error: Linux is required".format(os.path.basename(sys.argv[0])))
