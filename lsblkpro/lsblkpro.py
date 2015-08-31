@@ -204,12 +204,12 @@ class DeviceCollection:
         todo = set(self.devices)
 
         held_by = collections.defaultdict(list)
-        # xxx sort device names at this point instead of relying on self.devices's order
-        for devname in self.devices:
-            for holder in self.device(devname).holders:
-                held_by[holder].append(devname)
+        for device in sorted(self._device_objects.values(),
+                             key=operator.attrgetter('sort_name')):
+            for holder in device.holders:
+                held_by[holder].append(device.name)
                 todo.discard(holder)
-                todo.discard(devname) # only remove if this device has holders
+                todo.discard(device.name) # only remove if this device has holders
 
         holder_groups = [(tuple(group), holder) for holder, group in held_by.items()]
         holder_groups.extend(((devname,), ()) for devname in todo)
