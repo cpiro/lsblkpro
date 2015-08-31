@@ -239,22 +239,16 @@ class Device:
 
     @property
     def partitions(self):
-        parts = []
-        _dev = self.collection._devices[self.name]
-        for partname in _dev['partitions']:
+        for partname in self.data['partitions']:
             _part = self.collection._partitions[partname]
-            assert _part['PKNAME'] == _dev['name']
+            assert _part['PKNAME'] == self.name
             assert _part['name'] == partname
-            parts.append(partname)
-        return parts
+            yield partname
 
     @property
     def holders(self):
         # recursive holders
-        holders = []
-
-        _dev = self.collection._devices[self.name]
-        holders.extend(_dev.get('holders', []))
+        holders = self.data.get('holders', [])
 
         for partname in self.partitions:
             part = self.collection.partition(partname)
@@ -291,9 +285,12 @@ class Partition:
         self.collection = collection
 
     @property
+    def data(self):
+        return self.collection._partitions[self.name]
+
+    @property
     def holders(self):
-        _part = self.collection._partitions[self.name]
-        return _part.get('holders', [])
+        return self.data.get('holders', [])
 
 def display_order_for(devc, args):
     rows = []
@@ -303,15 +300,17 @@ def display_order_for(devc, args):
         devnames = devc.devices_smart_order()
 
     for devname in devnames:
-        _dev = devc._devices[devname]
+        dev = devc.device(devname)
+        _dev = dev.data
         rows.append(_dev)
         if args.only_devices:
             continue
         if (_dev.get('vdev') or _dev.get('zpath')) and not args.all_devices:
             continue
-        for partname in devc.device(devname).partitions:
-            _part = devc._partitions[partname]
-            assert _part['PKNAME'] == _dev['name']
+        for partname in dev.partitions:
+            part = devc.partition(partname)
+            _part = part.data
+            assert _part['PKNAME'] == dev.name
             rows.append(_part)
     return rows
 
