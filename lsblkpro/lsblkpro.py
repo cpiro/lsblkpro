@@ -164,18 +164,6 @@ def width_for_column(label, rows):
         max(len(value_to_str(row, label)) for row in rows)
     )
 
-# xxx inside
-def dev_name_split(device):
-    def to_int_maybe(p):
-        try:
-            return int(p)
-        except ValueError:
-            return p
-
-    tup = tuple(to_int_maybe(part) for part in re.findall(r'(?:^[a-z]{2}-?|[a-z]+|\d+)', device))
-    assert ''.join(str(part) for part in tup) == device
-    return tup
-
 class DeviceCollection:
     # xxx lift non-lsblk data (holders, etc.) all the way out of data module
     def __init__(self, devices, partitions, missing_from_lsblk, zvols):
@@ -189,16 +177,30 @@ class DeviceCollection:
         self._partition_objects = {partname: Partition(partname, collection=self)
                                    for partname in self._partitions.keys()}
         self.devices = [device.name for device in
-                        sorted((device for device in self._device_objects.values()),
+                        sorted(self._device_objects.values(),
                                key=operator.attrgetter('sort_name'))]
         self.partitions = [partition.name for partition in
                            self._partition_objects.values()]
+        self.missing_from_lsblk = [missing.name for missing in
+                                   sorted((Device(missname, collection=self)
+                                           for missname in self._missing_from_lsblk),
+                                          key=operator.attrgetter('sort_name'))]
 
     def device(self, devname):
         return self._device_objects[devname]
 
     def partition(self, partname):
         return self._partition_objects[partname]
+
+    def devices_specified_order(self, args):
+        def specified_order(device):
+            _dev = device.data
+            lex = [_dev.get(key, '') for key in args.sorts]
+            lex.append(device.name_parts)
+            return lex
+
+        return (device.name for device
+                in sorted(self._device_objects.values(), key=specified_order))
 
     def devices_smart_order(self):
         todo = set(self.devices)
@@ -225,8 +227,12 @@ class Device:
         self.collection = collection
 
     @property
+    def data(self):
+        return self.collection._devices[self.name]
+
+    @property
     def sort_name(self):
-        tup = list(dev_name_split(self.name))
+        tup = list(self.name_parts)
         if isinstance(tup[1], str):
             tup[1] = Device.device_letters_to_int(tup[1])
         return tup
@@ -259,7 +265,15 @@ class Device:
 
     @property
     def name_parts(self):
-        return dev_name_split(self.name)
+        def to_int_maybe(p):
+            try:
+                return int(p)
+            except ValueError:
+                return p
+
+        tup = tuple(to_int_maybe(part) for part in re.findall(r'(?:^[a-z]{2}-?|[a-z]+|\d+)', self.name))
+        assert ''.join(str(part) for part in tup) == self.name
+        return tup
 
     @staticmethod
     def device_letters_to_int(letters):
@@ -284,11 +298,7 @@ class Partition:
 def display_order_for(devc, args):
     rows = []
     if args.sorts:
-        def device_order(_dev):
-            lex = [_dev.get(key, '') for key in args.sorts]
-            lex.append(dev_name_split(_dev['name']))
-            return lex
-        devnames = (_dev['name'] for _dev in sorted(devc._devices.values(), key=device_order))
+        devnames = devc.devices_specified_order(args)
     else:
         devnames = devc.devices_smart_order()
 
