@@ -172,8 +172,8 @@ class DeviceCollection:
         self._missing_from_lsblk = missing_from_lsblk
         self._zvols = zvols
 
-        self.devices = sorted(Device(devname, collection=self)
-                              for devname in self._devices.keys(),
+        self.devices = sorted((Device(devname, collection=self)
+                               for devname in self._devices.keys()),
                               key=operator.attrgetter('sort_name'))
         self.partitions = [Partition(partname, collection=self)
                            for partname in self._partitions.keys()]
