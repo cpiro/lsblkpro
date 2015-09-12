@@ -1,12 +1,13 @@
 #!/usr/bin/env python3.4
 
 # TODO attach time
-# xxx package desc should include /sys/block
-# 3to2
+# TODO package desc should include /sys/block
+# TODO metric and binary sizes
+# TODO s.m.a.r.t. support (temp?)
+# TODO optionally trunc [...] long cells when most of column is short
+# TODO -A restarts with `less -S`
 
-# xxx metric and binary sizes
-# xxx s.m.a.r.t. support (temp?)
-# xxx optionally trunc [...] long cells when most of column is short
+# 3to2
 
 import os
 import sys
