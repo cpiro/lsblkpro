@@ -233,18 +233,17 @@ class Device:
             _part = self.collection._partitions[partname]
             assert _part['PKNAME'] == self.name
             assert _part['name'] == partname
-            yield partname
+            yield self.collection._partitions_by_name[partname]
 
     @property
     def holders(self):
         # recursive holders
         holders = self.data.get('holders', [])
 
-        for partname in self.partitions:
-            part = self.collection.partition(partname)
+        for part in self.partitions:
             holders.extend(part.holders)
 
-        assert all(holder in self.collection.devices for holder in holders) # dubious
+        assert all(holder in self.collection._devices_by_name for holder in holders) # dubious
         return holders
 
     @property
