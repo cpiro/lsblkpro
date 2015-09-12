@@ -200,8 +200,8 @@ class DeviceCollection:
         held_by = collections.defaultdict(list)
         for device in sorted(self.devices, key=operator.attrgetter('sort_name')):
             for holder in device.holders:
-                held_by[holder].append(device.name)
-                todo.discard(holder)
+                held_by[holder.name].append(device.name)
+                todo.discard(holder.name)
                 todo.discard(device.name) # only remove if this device has holders
 
         holder_groups = [(tuple(group), holder) for holder, group in held_by.items()]
@@ -210,7 +210,7 @@ class DeviceCollection:
         for group, holder in sorted(holder_groups, key=lambda elt: elt[0][0]):
             yield from (self._devices_by_name[name] for name in group)
             if holder:
-                yield self._devices_by_name[holder] # xxx always a device?
+                yield self._devices_by_name[holder]
 
 class Device:
     def __init__(self, name, *, collection):
@@ -238,14 +238,13 @@ class Device:
 
     @property
     def holders(self):
-        # recursive holders
-        holders = self.data.get('holders', [])
+        # holders of this device ...
+        yield from (self.collection._devices_by_name[name]
+                    for name in self.data.get('holders', ()))
 
+        # ... and holders of its partitions
         for part in self.partitions:
-            holders.extend(part.holders)
-
-        assert all(holder in self.collection._devices_by_name for holder in holders) # dubious
-        return holders ## xxx convert
+            yield from part.holders
 
     @property
     def name_parts(self):
@@ -280,7 +279,8 @@ class Partition:
 
     @property
     def holders(self):
-        return self.data.get('holders', []) ## xxx convert
+        return (self.collection._devices_by_name[name]
+                for name in self.data.get('holders', []))
 
 def display_order_for(devc, args):
     rows = []
