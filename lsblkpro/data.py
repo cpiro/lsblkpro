@@ -157,7 +157,7 @@ def get_data(args):
 
     def merge_row(row, result):
         row.update(result)
-        del row['NAME']
+        #del row['NAME']
         assert '{}:{}'.format(row['major'], row['minor']) == row['MAJ:MIN']
         #del row['MAJ:MIN']
 
