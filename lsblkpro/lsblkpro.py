@@ -518,11 +518,9 @@ def main():
     if args.load_data:
         import pickle
         with open('data', 'rb') as f:
-            data = pickle.load(f)
-            devices = data['devices']
-            partitions = data['partitions']
-            missing_from_lsblk = data['missing_from_lsblk']
-            zvols = data['zvols']
+            pickled = pickle.load(f)
+            devices, partitions, missing_from_lsblk, zvols = (
+                pickled[k] for k in ('devices', 'partitions', 'missing_from_lsblk', 'zvols'))
     else:
         devices, partitions, missing_from_lsblk = data.get_data(args)
         zvols = {name: zvol for name, zvol in data.walk_dev_zvol()}
