@@ -191,7 +191,8 @@ class DeviceCollection:
             lex.append(device.name_parts)
             return lex
 
-        return sorted(self._devices_by_name.values(), key=specified_order)
+        names = sorted(self._devices_by_name.values(), key=specified_order)
+        return (self._devices_by_name[name] for name in names)
 
     def devices_smart_order(self):
         todo = {device.name for device in self.devices}
@@ -207,9 +208,9 @@ class DeviceCollection:
         holder_groups.extend(((devname,), ()) for devname in todo)
 
         for group, holder in sorted(holder_groups, key=lambda elt: elt[0][0]):
-            yield from group
+            yield from (self._devices_by_name[name] for name in group)
             if holder:
-                yield holder
+                yield self._devices_by_name[holder] # xxx always a device?
 
 class Device:
     def __init__(self, name, *, collection):
@@ -244,7 +245,7 @@ class Device:
             holders.extend(part.holders)
 
         assert all(holder in self.collection._devices_by_name for holder in holders) # dubious
-        return holders
+        return holders ## xxx convert
 
     @property
     def name_parts(self):
@@ -279,25 +280,23 @@ class Partition:
 
     @property
     def holders(self):
-        return self.data.get('holders', [])
+        return self.data.get('holders', []) ## xxx convert
 
 def display_order_for(devc, args):
     rows = []
     if args.sorts:
-        devnames = devc.devices_specified_order(args)
+        devices = devc.devices_specified_order(args)
     else:
-        devnames = devc.devices_smart_order()
+        devices = devc.devices_smart_order()
 
-    for devname in devnames:
-        dev = devc.device(devname)
+    for dev in devices:
         _dev = dev.data
         rows.append(_dev)
         if args.only_devices:
             continue
         if (_dev.get('vdev') or _dev.get('zpath')) and not args.all_devices:
             continue
-        for partname in dev.partitions:
-            part = devc.partition(partname)
+        for part in dev.partitions:
             _part = part.data
             assert _part['PKNAME'] == dev.name
             rows.append(_part)
