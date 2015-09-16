@@ -5,24 +5,6 @@ import subprocess
 
 CLI_UTILS_ENCODING = sys.stdout.encoding
 
-def parse_maj_min(s):
-    m = re.match(r'(\d*):(\d*)', s)
-    assert m
-    return int(m.group(1)), int(m.group(2))
-
-def is_partition_dirent(device_name, entry):
-    if not entry.startswith(device_name):
-        return False
-    return os.path.exists(os.path.join('/sys', 'block', device, entry, 'start'))
-
-def read_sysfs(path, filename):
-    with open(os.path.join(path, filename), 'r') as f:
-        data = f.read()
-    try:
-        return int(data)
-    except ValueError:
-        return data
-
 class Device:
     def __init__(self, name):
         self.name = name
@@ -203,7 +185,23 @@ class Host:
         self.zpool_status_result = True
 
 
-##### xxx
+def parse_maj_min(s):
+    m = re.match(r'(\d*):(\d*)', s)
+    assert m
+    return int(m.group(1)), int(m.group(2))
+
+def is_partition_dirent(device_name, entry):
+    if not entry.startswith(device_name):
+        return False
+    return os.path.exists(os.path.join('/sys', 'block', device, entry, 'start'))
+
+def read_sysfs(path, filename):
+    with open(os.path.join(path, filename), 'r') as f:
+        data = f.read()
+    try:
+        return int(data)
+    except ValueError:
+        return data
 
 def parse_zpool_status(status):
     config = False
