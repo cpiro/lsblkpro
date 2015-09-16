@@ -33,6 +33,7 @@ class Device:
         self.minor = None
         self.lsblk = None
         self.by = {}
+        self.zpath = None
 
     @staticmethod
     def from_sysfs(device_name):
@@ -79,6 +80,10 @@ class Host:
         self.partitions = None
         self.missing_from_lsblk = None
 
+        # True = success, False = need sudoers
+        # None = not attempted, Exception = something else
+        ##self.zpool_status_result = None
+
     def entity(self, name):
         if name in self.devices:
             return self.devices[name]
@@ -96,6 +101,8 @@ class Host:
                                    - set(result[PRIMARY_KEY] for result in results))
         host._punch_up_lsblk(results)
         host._punch_up_dev_disk()
+        host._punch_up_zpool_status()
+
         return host
 
     @staticmethod
@@ -163,7 +170,38 @@ class Host:
                 elif kind == 'by-uuid':
                     assert entity.lsblk['UUID'] == entry
                 else:
-                    entity.by[kind] = entry
+                    assert kind.startswith('by-')
+                    entity.by[kind[3:]] = entry
+
+    def _punch_up_zpool_status(self):
+        # punch up with zpool status, if we can get it without prompting for a password
+        try:
+            zpool_status = subprocess.check_output(['sudo', '-n', 'zpool', 'status'],
+                                                   stderr=subprocess.STDOUT)
+        except subprocess.CalledProcessError as ex:
+            if ex.output == 'sudo: a password is required\n' and ex.returncode == 1:
+                self.zpool_status_result = False
+                print("WARNING: couldn't get zpool status non-interactively; consider adding this to sudoers:\n")
+                print("    {} ALL=NOPASSWD: /sbin/zpool status\n".format(os.environ['USER']))
+            else:
+                self.zpool_status_result = ex
+            return
+
+        zpaths = parse_zpool_status(zpool_status)
+        if all(v.endswith('-0') for v in zpaths.values()):
+            # trim off the -0
+            zpaths = {k: v[0:-2] for k, v in zpaths.items()}
+
+        for dev in self.devices.values():
+            vdev = dev.by.get('vdev')
+            idd = dev.by.get('id')
+            if vdev and vdev in zpaths:
+                dev.zpath = zpaths[vdev]
+            elif idd and idd in zpaths:
+                dev.zpath = zpaths[idd]
+
+        self.zpool_status_result = True
+
 
 ##### xxx
 
@@ -201,42 +239,3 @@ def parse_zpool_status(status):
                 path = []
             continue
     return rv
-
-def walk_dev_zvol():
-    if not os.path.exists('/dev/zvol'):
-        return
-    for pool in os.listdir('/dev/zvol'):
-        poolpath = os.path.join('/dev/zvol', pool)
-        for vol in os.listdir(poolpath):
-            volpath = os.path.join(poolpath, vol)
-            devpath = os.path.abspath(os.path.join(os.path.dirname(volpath),
-                                                   os.readlink(volpath)))
-            assert devpath.startswith('/dev/')
-            name = devpath[5:]
-            yield name, '{}/{}'.format(pool, vol)
-
-
-def get_data(args):
-
-    # punch up with zpool status, if we can get it without prompting for a password
-    try:
-        zpool_status = subprocess.check_output(['sudo', '-n', 'zpool', 'status'], stderr=subprocess.STDOUT)
-        zpaths = parse_zpool_status(zpool_status)
-        if all(v.endswith('-0') for v in zpaths.values()):
-            zpaths = {k: v[0:-2] for k, v in zpaths.items()}
-        for dev in devices.values():
-            vdev = dev.get('by-vdev')
-            idd = dev.get('by-id')
-            if vdev and vdev in zpaths:
-                dev['zpath'] = zpaths[vdev]
-            elif idd and idd in zpaths:
-                dev['zpath'] = zpaths[idd]
-    except subprocess.CalledProcessError as ex:
-        if ex.output == 'sudo: a password is required\n' and ex.returncode == 1:
-            print("WARNING: couldn't get zpool status non-interactively; consider adding this to sudoers:\n")
-            print("    {} ALL=NOPASSWD: /sbin/zpool status\n".format(os.environ['USER']))
-        else:
-            logging.exception(ex)
-            print()
-
-    return devices, partitions, missing_from_lsblk
