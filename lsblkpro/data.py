@@ -162,6 +162,7 @@ class Host:
                                                    stderr=subprocess.STDOUT)
         except subprocess.CalledProcessError as ex:
             if ex.output == 'sudo: a password is required\n' and ex.returncode == 1:
+                # xxx check if zpool is even installed
                 self.zpool_status_result = False
                 print("WARNING: couldn't get zpool status non-interactively; consider adding this to sudoers:\n")
                 print("    {} ALL=NOPASSWD: /sbin/zpool status\n".format(os.environ['USER']))
