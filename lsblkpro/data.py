@@ -15,6 +15,14 @@ def is_partition_dirent(device_name, entry):
         return False
     return os.path.exists(os.path.join('/sys', 'block', device, entry, 'start'))
 
+def read_sysfs(path, filename):
+    with open(os.path.join(path, filename), 'r') as f:
+        data = f.read()
+    try:
+        return int(data)
+    except ValueError:
+        return data
+
 class Device:
     def __init__(self, name):
         self.name = name
@@ -23,6 +31,7 @@ class Device:
         self.size = None
         self.major = None
         self.minor = None
+        self.lsblk = None
 
     @staticmethod
     def from_sysfs(device_name):
@@ -41,7 +50,6 @@ class Device:
 
         dev.partitions = [Partition.from_sysfs(part_name, dev)
                           for part_name in partition_names]
-
         return dev
 
 class Partition:
@@ -49,6 +57,7 @@ class Partition:
         self.name = name
         self.device = device
         self.holders = None
+        self.lsblk = None
 
     @staticmethod
     def from_sysfs(name, device):
@@ -68,11 +77,16 @@ class Host:
         self.partitions = None
 
     @staticmethod
-    def from_sysfs():
+    def go(args):
+        host = Host.from_sysfs(args)
+        host._punch_up_lsblk(Host.from_lsblk(args))
+        return host
+
+    @staticmethod
+    def from_sysfs(args):
         host = Host()
         host.devices = {}
         host.partitions = {}
-        sysfs_names = set()
 
         def device_names():
             for entry in os.listdir(os.path.join('/sys', 'block')):
@@ -82,28 +96,44 @@ class Host:
         for dev_name in device_names():
             dev = Device.from_sysfs(dev_name)
             host.devices[dev.name] = dev
-            sysfs_names.add(dev.name)
 
             for part in dev.partitions:
                 host.partitions[part.name] = part
-                sysfs_names.add(part.name)
 
         return host
 
-##### xxx
+    @staticmethod
+    def from_lsblk(args):
+        cmd = ['lsblk']
+        if args.all_devices:
+            cmd.append('--all')
+        cmd.extend(['-P', '-O'])
+        out = subprocess.check_output(cmd)
+        results = []
+        for l in out.decode(CLI_UTILS_ENCODING).splitlines():
+            a = re.findall(r'(.*?)="(.*?)" ?', l)
+            d = {k: v for k, v in a}
+            results.append(d)
+        return results
 
-def lsblk(args):
-    cmd = ['lsblk']
-    if args.all_devices:
-        cmd.append('--all')
-    cmd.extend(['-P', '-O'])
-    out = subprocess.check_output(cmd)
-    results = []
-    for l in out.decode(CLI_UTILS_ENCODING).splitlines():
-        a = re.findall(r'(.*?)="(.*?)" ?', l)
-        d = {k:v for k,v in a}
-        results.append(d)
-    return results
+    def _punch_up_lsblk(self, rows):
+        PRIMARY_KEY = 'NAME'
+        for row in rows:
+            name = row[PRIMARY_KEY]
+
+            if name in self.devices:
+                entity = self.devices[name]
+            elif name in self.partitions:
+                entity = self.partitions[name]
+            else:
+                raise RuntimeError("device '{}' in lsblk results not in /sys/block/*/*".format(name))
+
+            entity.lsblk = row
+            assert '{}:{}'.format(entity.major, entity.minor) == entity.lsblk['MAJ:MIN']
+            assert entity.name == entity.lsblk[PRIMARY_KEY]
+
+
+##### xxx
 
 def parse_zpool_status(status):
     config = False
@@ -140,36 +170,6 @@ def parse_zpool_status(status):
             continue
     return rv
 
-
-def read_sysfs(path, filename):
-    with open(os.path.join(path, filename), 'r') as f:
-        data = f.read()
-    try:
-        return int(data)
-    except ValueError:
-        return data
-
-# def to_bool(zero_or_one):
-#     assert zero_or_one == 0 or zero_or_one == 1
-#     return bool(zero_or_one)
-
-def from_sysfs(device):
-    row = {'name': device, 'partitions': []}
-    path = os.path.join('/sys', 'block', device)
-    for entry in os.listdir(path):
-        if is_partition_dirent(device, entry):
-            row['partitions'].append(entry)
-        elif entry == 'holders':
-            holders = os.listdir(os.path.join('/sys', 'block', device, 'holders'))
-            if holders:
-                row['holders'] = holders
-        elif entry == 'dev':
-            parse_maj_min(read_sysfs(path, entry), row)
-        elif entry in ('size',):
-            row[entry] = int(read_sysfs(path, entry))
-
-    return row
-
 def walk_dev_zvol():
     if not os.path.exists('/dev/zvol'):
         return
@@ -185,59 +185,6 @@ def walk_dev_zvol():
 
 
 def get_data(args):
-    # xxx
-
-    # lsblk
-    results = lsblk(args)
-
-    lsblk_names = set()
-    for result in results:
-        name = result['NAME']
-        lsblk_names.add(name)
-        if not name in sysfs_names:
-            raise RuntimeError("device '{}' in lsblk results not in /sys/block/*/*".format(name))
-
-    # xxx rather than exclude these, use maj:min from sysfs
-    missing_from_lsblk = sysfs_names - lsblk_names
-    devices = {d['name']: d for d in devices
-                            if d['name'] in lsblk_names}
-    partitions = {p['name']: p for p in partitions
-                               if p['name'] in lsblk_names}
-
-    def merge_row(row, result):
-        row.update(result)
-        #del row['NAME']
-        assert '{}:{}'.format(row['major'], row['minor']) == row['MAJ:MIN']
-        #del row['MAJ:MIN']
-
-    for result in results:
-        name = result['NAME']
-        if name in devices:
-            merge_row(devices[name], result)
-        elif name in partitions:
-            merge_row(partitions[name], result)
-        else:
-            assert False, result # xxx
-
-    # /dev/disk
-    for kind in os.listdir(os.path.join('/dev', 'disk')):
-        path = os.path.join('/dev', 'disk', kind)
-        for fn in os.listdir(path):
-            dev_or_part = os.path.basename(os.readlink(os.path.join(path, fn)))
-
-            if dev_or_part in devices:
-                row = devices[dev_or_part]
-            elif dev_or_part in partitions:
-                row = partitions[dev_or_part]
-            else:
-                assert False, (kind, fn, dev_or_part)
-
-            if kind == 'by-partuuid':
-                assert row['PARTUUID'] == fn
-            elif kind == 'by-uuid':
-                assert row['UUID'] == fn
-            else:
-                row[kind] = fn
 
     # punch up with zpool status, if we can get it without prompting for a password
     try:
