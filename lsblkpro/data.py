@@ -77,6 +77,7 @@ class Host:
     def __init__(self):
         self.devices = None
         self.partitions = None
+        self.missing_from_lsblk = None
 
     def entity(self, name):
         if name in self.devices:
@@ -89,7 +90,11 @@ class Host:
     @staticmethod
     def go(args):
         host = Host.from_sysfs(args)
-        host._punch_up_lsblk(Host.from_lsblk(args))
+        results = Host.from_lsblk(args)
+        host.missing_from_lsblk = (set(self.devices.keys())
+                                   + set(self.partitions.keys())
+                                   - set(result[PRIMARY_KEY] for result in results))
+        host._punch_up_lsblk(results)
         host._punch_up_dev_disk()
         return host
 
