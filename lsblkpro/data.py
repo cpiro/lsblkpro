@@ -32,6 +32,7 @@ class Device:
         self.major = None
         self.minor = None
         self.lsblk = None
+        self.by = {}
 
     @staticmethod
     def from_sysfs(device_name):
@@ -58,6 +59,7 @@ class Partition:
         self.device = device
         self.holders = None
         self.lsblk = None
+        self.by = {}
 
     @staticmethod
     def from_sysfs(name, device):
@@ -76,10 +78,19 @@ class Host:
         self.devices = None
         self.partitions = None
 
+    def entity(self, name):
+        if name in self.devices:
+            return self.devices[name]
+        elif name in self.partitions:
+            return self.partitions[name]
+        else:
+            raise KeyError()
+
     @staticmethod
     def go(args):
         host = Host.from_sysfs(args)
         host._punch_up_lsblk(Host.from_lsblk(args))
+        host._punch_up_dev_disk()
         return host
 
     @staticmethod
@@ -121,17 +132,33 @@ class Host:
         for row in rows:
             name = row[PRIMARY_KEY]
 
-            if name in self.devices:
-                entity = self.devices[name]
-            elif name in self.partitions:
-                entity = self.partitions[name]
-            else:
+            try:
+                entity = self.entity(name)
+            except KeyError:
                 raise RuntimeError("device '{}' in lsblk results not in /sys/block/*/*".format(name))
 
             entity.lsblk = row
             assert '{}:{}'.format(entity.major, entity.minor) == entity.lsblk['MAJ:MIN']
             assert entity.name == entity.lsblk[PRIMARY_KEY]
 
+    def _punch_up_dev_disk(self):
+        for kind in os.listdir(os.path.join('/dev', 'disk')):
+            path = os.path.join('/dev', 'disk', kind)
+            for entry in os.listdir(path):
+                entity_name = os.path.basename(os.readlink(os.path.join(path, entry)))
+
+                try:
+                    entity = self.entity(entity_name)
+                except KeyError:
+                    raise RuntimeError("device '{}' (linked from /dev/disk/{}/{}) "
+                                       "not in /sys/block/*/*".format(name, kind, entry))
+
+                if kind == 'by-partuuid':
+                    assert entity.lsblk['PARTUUID'] == entry
+                elif kind == 'by-uuid':
+                    assert entity.lsblk['UUID'] == entry
+                else:
+                    entity.by[kind] = entry
 
 ##### xxx
 
