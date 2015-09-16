@@ -6,6 +6,7 @@
 # TODO s.m.a.r.t. support (temp?)
 # TODO optionally trunc [...] long cells when most of column is short
 # TODO -A restarts with `less -S`
+# TODO show and highlight misalignment, smart, other warning signs
 
 # 3to2
 
