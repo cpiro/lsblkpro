@@ -5,6 +5,93 @@ import subprocess
 
 CLI_UTILS_ENCODING = sys.stdout.encoding
 
+def parse_maj_min(s):
+    m = re.match(r'(\d*):(\d*)', s)
+    assert m
+    return int(m.group(1)), int(m.group(2))
+
+def is_partition_dirent(device_name, entry):
+    if not entry.startswith(device_name):
+        return False
+    return os.path.exists(os.path.join('/sys', 'block', device, entry, 'start'))
+
+class Device:
+    def __init__(self, name):
+        self.name = name
+        self.partitions = None
+        self.holders = None
+        self.size = None
+        self.major = None
+        self.minor = None
+
+    @staticmethod
+    def from_sysfs(device_name):
+        dev = Device(device_name)
+        path = os.path.join('/sys', 'block', device_name)
+        partition_names = []
+        for entry in os.listdir(path):
+            if is_partition_dirent(device_name, entry):
+                partition_names.append(entry)
+            elif entry == 'holders':
+                dev.holders = os.listdir(os.path.join('/sys', 'block', device_name, 'holders'))
+            elif entry == 'dev':
+                dev.major, dev.minor = parse_maj_min(read_sysfs(path, entry))
+            elif entry == 'size':
+                dev.size = int(read_sysfs(path, entry))
+
+        dev.partitions = [Partition.from_sysfs(part_name, dev)
+                          for part_name in partition_names]
+
+        return dev
+
+class Partition:
+    def __init__(self, name, device):
+        self.name = name
+        self.device = device
+        self.holders = None
+
+    @staticmethod
+    def from_sysfs(name, device):
+        part = Partition(name, device)
+        path = os.path.join('/sys', 'block', device.name, part.name)
+        entries = os.listdir(path)
+        for entry in entries:
+            if entry == 'holders':
+                part.holders = os.listdir(os.path.join('/sys', 'block', device, part, 'holders'))
+            elif entry == 'dev':
+                part.major, part.minor = parse_maj_min(read_sysfs(path, entry))
+        return part
+
+class Host:
+    def __init__(self):
+        self.devices = None
+        self.partitions = None
+
+    @staticmethod
+    def from_sysfs():
+        host = Host()
+        host.devices = {}
+        host.partitions = {}
+        sysfs_names = set()
+
+        def device_names():
+            for entry in os.listdir(os.path.join('/sys', 'block')):
+                if args.all_devices or not re.fullmatch(r'(?:ram\d+|loop\d+)', entry):
+                    yield entry
+
+        for dev_name in device_names():
+            dev = Device.from_sysfs(dev_name)
+            host.devices[dev.name] = dev
+            sysfs_names.add(dev.name)
+
+            for part in dev.partitions:
+                host.partitions[part.name] = part
+                sysfs_names.add(part.name)
+
+        return host
+
+##### xxx
+
 def lsblk(args):
     cmd = ['lsblk']
     if args.all_devices:
@@ -53,15 +140,6 @@ def parse_zpool_status(status):
             continue
     return rv
 
-def top_level_devices(args):
-    for device in os.listdir(os.path.join('/sys', 'block')):
-        if args.all_devices or not re.fullmatch(r'(?:ram\d+|loop\d+)', device):
-            yield device
-
-def is_partition_dirent(device, directory):
-    if not directory.startswith(device):
-        return False
-    return os.path.exists(os.path.join('/sys', 'block', device, directory, 'start'))
 
 def read_sysfs(path, filename):
     with open(os.path.join(path, filename), 'r') as f:
@@ -75,13 +153,7 @@ def read_sysfs(path, filename):
 #     assert zero_or_one == 0 or zero_or_one == 1
 #     return bool(zero_or_one)
 
-def parse_maj_min(data, row):
-    m = re.match(r'(\d*):(\d*)', data)
-    assert m
-    row['major'] = int(m.group(1))
-    row['minor'] = int(m.group(2))
-
-def walk_device(device):
+def from_sysfs(device):
     row = {'name': device, 'partitions': []}
     path = os.path.join('/sys', 'block', device)
     for entry in os.listdir(path):
@@ -111,32 +183,9 @@ def walk_dev_zvol():
             name = devpath[5:]
             yield name, '{}/{}'.format(pool, vol)
 
-def walk_partition(device, part):
-    row = {'name': part}
-    path = os.path.join('/sys', 'block', device, part)
-    entries = os.listdir(path)
-    for entry in entries:
-        if entry == 'holders':
-            holders = os.listdir(os.path.join('/sys', 'block', device, part, 'holders'))
-            if holders:
-                row['holders'] = holders
-        elif entry == 'dev':
-            parse_maj_min(read_sysfs(path, entry), row)
-    return row
 
 def get_data(args):
-    # sysfs
-    device_list = []
-    partition_list = []
-    sysfs_names = set()
-    for device_name in top_level_devices(args):
-        row = walk_device(device_name)
-        device_list.append(row)
-        sysfs_names.add(row['name'])
-        for part_name in row['partitions']:
-            row = walk_partition(device_name, part_name)
-            partition_list.append(row)
-            sysfs_names.add(row['name'])
+    # xxx
 
     # lsblk
     results = lsblk(args)
@@ -150,9 +199,9 @@ def get_data(args):
 
     # xxx rather than exclude these, use maj:min from sysfs
     missing_from_lsblk = sysfs_names - lsblk_names
-    devices = {d['name']: d for d in device_list
+    devices = {d['name']: d for d in devices
                             if d['name'] in lsblk_names}
-    partitions = {p['name']: p for p in partition_list
+    partitions = {p['name']: p for p in partitions
                                if p['name'] in lsblk_names}
 
     def merge_row(row, result):
