@@ -5,11 +5,10 @@ import collections
 
 class DeviceCollection:
     # xxx lift non-lsblk data (holders, etc.) all the way out of data module
-    def __init__(self, devices, partitions, missing_from_lsblk, zvols):
+    def __init__(self, devices, partitions, missing_from_lsblk):
         self._devices = devices
         self._partitions = partitions
         self._missing_from_lsblk = missing_from_lsblk
-        self._zvols = zvols
 
         self.devices = sorted((Device(devname, collection=self)
                                for devname in self._devices.keys()),

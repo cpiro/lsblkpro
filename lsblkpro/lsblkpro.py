@@ -263,7 +263,7 @@ def figure_out_labels(rows, args):
 
     return width_label_pairs, every_device_has, omit, overflow
 
-def munge(rows, devices, partitions, zvols):
+def munge(rows, devices, partitions):
     def display_name_for(row, *, last):
         name = row['KNAME']
         if row['NAME'] != name:
@@ -284,10 +284,9 @@ def munge(rows, devices, partitions, zvols):
     def location_for(row):
         zpath = row.get('zpath', '')
         mnt = row.get('MOUNTPOINT', '')
-        zvol = zvols.get(row['name'], '')
         holders = '[{}]'.format(', '.join(row['holders'])) if row.get('holders') else ''
-        assert sum(1 for x in (zpath, mnt, zvol) if x) <= 1
-        return ' '.join(x for x in (zpath, mnt, zvol, holders) if x)
+        assert sum(1 for x in (zpath, mnt) if x) <= 1
+        return ' '.join(x for x in (zpath, mnt, holders) if x)
 
     for ii, row in enumerate(rows):
         try:
@@ -422,12 +421,12 @@ def main():
         sys.exit(0)
 
     # compute rows (each device followed by its partitions)
-    devc = DeviceCollection(devices, partitions, missing_from_lsblk, zvols)
+    devc = DeviceCollection(devices, partitions, missing_from_lsblk)
     rows = display_order_for(devc, args)
     rows, filter_log = apply_filters(rows, args)
 
     # munge
-    munge(rows, devices, partitions, zvols)
+    munge(rows, devices, partitions)
     munge_highlights(rows, args.highlight)
 
     # figure out labels
