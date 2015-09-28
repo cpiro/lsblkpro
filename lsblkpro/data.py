@@ -7,6 +7,7 @@ import subprocess
 import collections
 
 CLI_UTILS_ENCODING = sys.stdout.encoding
+PRIMARY_KEY = 'NAME'
 
 class Entity:
     def __init__(self, name):
@@ -112,7 +113,8 @@ class Partition(Entity):
         entries = os.listdir(path)
         for entry in entries:
             if entry == 'holders':
-                part.holder_names = os.listdir(os.path.join('/sys', 'block', device, part, 'holders'))
+                part.holder_names = os.listdir(os.path.join('/sys', 'block',
+                                                            device.name, part.name, 'holders'))
             elif entry == 'dev':
                 part.major, part.minor = parse_maj_min(read_sysfs(path, entry))
         return part
@@ -162,9 +164,9 @@ class Host:
     def go(args):
         host = Host.from_sysfs(args)
         results = Host.from_lsblk(args)
-        host.missing_from_lsblk = (set(self.devices.keys())
-                                   + set(self.partitions.keys())
-                                   - set(result[PRIMARY_KEY] for result in results))
+
+        host.missing_from_lsblk = set(host.devices.keys()) | set(host.partitions.keys()) - set(result[PRIMARY_KEY] for result in results)
+
         host._punch_up_lsblk(results)
         host._punch_up_dev_disk()
         host._punch_up_zpool_status()
@@ -206,7 +208,6 @@ class Host:
         return results
 
     def _punch_up_lsblk(self, rows):
-        PRIMARY_KEY = 'NAME'
         for row in rows:
             name = row[PRIMARY_KEY]
 
@@ -278,7 +279,7 @@ def parse_maj_min(s):
 def is_partition_dirent(device_name, entry):
     if not entry.startswith(device_name):
         return False
-    return os.path.exists(os.path.join('/sys', 'block', device, entry, 'start'))
+    return os.path.exists(os.path.join('/sys', 'block', device_name, entry, 'start'))
 
 def read_sysfs(path, filename):
     with open(os.path.join(path, filename), 'r') as f:
