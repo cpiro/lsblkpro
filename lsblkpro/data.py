@@ -16,14 +16,6 @@ class Entity:
         self.by = {}
         self.holder_names = None
 
-    # xxx do not want
-    @property
-    def _row(self):
-        d = self.lsblk.copy()
-        for k, v in self.by:
-            d['by-' + k] = v
-        return d
-
 class Device(Entity):
     def __init__(self, name):
         super().__init__(name)
