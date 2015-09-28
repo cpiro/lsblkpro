@@ -1,6 +1,4 @@
-import operator
 import re
-import string
 
 class DeviceCollection:
     # xxx lift non-lsblk data (holders, etc.) all the way out of data module

@@ -25,7 +25,6 @@ import pprint
 pp = pprint.pprint
 
 from . import data
-from .model import *
 
 always_interesting = set('SIZE')
 
