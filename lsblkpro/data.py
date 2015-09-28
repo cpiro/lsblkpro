@@ -141,7 +141,7 @@ class Host:
                           key=lambda d: d._sortable_specified(args))
 
         # smart order
-        todo = set(self.devices.keys()}
+        todo = set(self.devices.keys())
 
         held_by = collections.defaultdict(list)
         for device in sorted(self.devices.values(), key=operator.attrgetter('_sortable_smart')):

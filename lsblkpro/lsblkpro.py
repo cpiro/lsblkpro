@@ -165,20 +165,15 @@ def width_for_column(label, rows):
     )
 
 def display_order_for(host, args):
-    rows = []
-
-    for dev in host.devices_sorted(args):
-        _dev = dev.data
-        rows.append(_dev)
+    for device in host.devices_sorted(args):
+        yield device._row
         if args.only_devices:
             continue
-        if (_dev.get('vdev') or _dev.get('zpath')) and not args.all_devices:
+        if (device.by['vdev'] or device.zpath) and not args.all_devices:
             continue
-        for part in dev.partitions:
-            _part = part.data
-            assert _part['PKNAME'] == dev.name
-            rows.append(_part)
-    return rows
+        for part in device.partitions:
+            assert part.lsblk['PKNAME'] == device.name
+            yield part._row
 
 def apply_filters(rows, args):
     filter_log = []
