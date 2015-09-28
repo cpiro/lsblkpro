@@ -2,6 +2,7 @@ import os
 import sys
 import re
 import subprocess
+import collections
 
 CLI_UTILS_ENCODING = sys.stdout.encoding
 
@@ -9,7 +10,7 @@ class Device:
     def __init__(self, name):
         self.name = name
         self.partitions = None
-        self.holders = None
+        self.holder_names = None
         self.size = None
         self.major = None
         self.minor = None
@@ -26,7 +27,7 @@ class Device:
             if is_partition_dirent(device_name, entry):
                 partition_names.append(entry)
             elif entry == 'holders':
-                dev.holders = os.listdir(os.path.join('/sys', 'block', device_name, 'holders'))
+                dev.holder_names = os.listdir(os.path.join('/sys', 'block', device_name, 'holders'))
             elif entry == 'dev':
                 dev.major, dev.minor = parse_maj_min(read_sysfs(path, entry))
             elif entry == 'size':
@@ -36,11 +37,60 @@ class Device:
                           for part_name in partition_names]
         return dev
 
+    @property
+    def name_parts(self):
+        def to_int_maybe(p):
+            try:
+                return int(p)
+            except ValueError:
+                return p
+
+        tup = tuple(to_int_maybe(part) for part
+                    in re.findall(r'(?:^[a-z]{2}-?|[a-z]+|\d+)', self.name))
+        assert ''.join(str(part) for part in tup) == self.name
+        return tup
+
+    def _sort_value(self, key):
+        value = self.lsblk.get(key.upper())
+        if value:
+            return value
+
+        value = self.by.get(key)
+        if value:
+            return value
+
+        if key.startswith('by-'):
+            value = self.by.get(key[3:])
+            return value
+
+        raise KeyError("device '{}' has no key '{}'".format(self.name, key))
+
+    def _sortable_specified(self, args):
+        return ([self._sort_name(key) for key in args.sorts] +
+                self._sortable_smart)
+
+    @property
+    def _sortable_smart(self):
+        tup = list(self.name_parts)
+        if isinstance(tup[1], str):
+            tup[1] = Device.device_letters_to_int(tup[1])
+        return tup
+
+    @staticmethod
+    def device_letters_to_int(letters):
+        """spreadsheet column letters to integer index from zero
+        e.g. 'a' -> 0, 'z' -> 25, 'aa' -> 26"""
+        num = 0
+        for l in letters:
+            assert l in string.ascii_letters
+            num = num * 26 + (ord(l.lower()) - ord('a')) + 1
+        return num - 1
+
 class Partition:
     def __init__(self, name, device):
         self.name = name
         self.device = device
-        self.holders = None
+        self.holder_names = None
         self.lsblk = None
         self.by = {}
 
@@ -51,7 +101,7 @@ class Partition:
         entries = os.listdir(path)
         for entry in entries:
             if entry == 'holders':
-                part.holders = os.listdir(os.path.join('/sys', 'block', device, part, 'holders'))
+                part.holder_names = os.listdir(os.path.join('/sys', 'block', device, part, 'holders'))
             elif entry == 'dev':
                 part.major, part.minor = parse_maj_min(read_sysfs(path, entry))
         return part
@@ -73,6 +123,28 @@ class Host:
             return self.partitions[name]
         else:
             raise KeyError()
+
+    def devices_specified_order(self, args):
+        return sorted(self.devices.values(),
+                      key=lambda d: d._sortable_specified(args))
+
+    def devices_smart_order(self):
+        todo = set(self.devices.keys()}
+
+        held_by = collections.defaultdict(list)
+        for device in sorted(self.devices.values(), key=operator.attrgetter('_sortable_smart')):
+            for holder_name in device.holder_names:
+                held_by[holder_name].append(device.name)
+                todo.discard(holder_name)
+                todo.discard(device.name) # only remove if this device has holders
+
+        holder_groups = [(tuple(group), holder) for holder, group in held_by.items()]
+        holder_groups.extend(((device_name,), ()) for device_name in todo)
+
+        for group, holder_name in sorted(holder_groups, key=lambda elt: elt[0][0]):
+            yield from (self.devices[name] for name in group)
+            if holder_name:
+                yield self.devices[holder_name]
 
     @staticmethod
     def go(args):

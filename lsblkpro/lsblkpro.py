@@ -165,12 +165,12 @@ def width_for_column(label, rows):
         max(len(value_to_str(row, label)) for row in rows)
     )
 
-def display_order_for(devc, args):
+def display_order_for(host, args):
     rows = []
     if args.sorts:
-        devices = devc.devices_specified_order(args)
+        devices = host.devices_specified_order(args)
     else:
-        devices = devc.devices_smart_order()
+        devices = host.devices_smart_order()
 
     for dev in devices:
         _dev = dev.data
@@ -414,8 +414,7 @@ def main():
         sys.exit(0)
 
     # compute rows (each device followed by its partitions)
-    devc = DeviceCollection(devices, partitions, missing_from_lsblk)
-    rows = display_order_for(devc, args)
+    rows = display_order_for(host, args)
     rows, filter_log = apply_filters(rows, args)
 
     # munge
