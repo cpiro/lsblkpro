@@ -237,6 +237,7 @@ def figure_out_labels(rows, args):
             width_limit = None
 
     for label in args.include:
+        # xxx check that it's a valid label, warn otherwise
         importance.remove(label)
         always_interesting.add(label)
     importance[2:1+len(args.include)] = args.include

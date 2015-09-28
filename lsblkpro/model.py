@@ -30,8 +30,7 @@ class DeviceCollection:
             lex.append(device.name_parts)
             return lex
 
-        names = sorted(self._devices_by_name.values(), key=specified_order)
-        return (self._devices_by_name[name] for name in names)
+        return sorted(self.devices, key=specified_order)
 
     def devices_smart_order(self):
         todo = {device.name for device in self.devices}
