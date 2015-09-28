@@ -7,6 +7,8 @@
 # TODO optionally trunc [...] long cells when most of column is short
 # TODO -A restarts with `less -S`
 # TODO show and highlight misalignment, smart, other warning signs
+# TODO deal with resilvering
+# TODO sort by everything, esp vdev
 
 # 3to2
 
