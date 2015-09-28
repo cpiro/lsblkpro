@@ -124,11 +124,12 @@ class Host:
         else:
             raise KeyError()
 
-    def devices_specified_order(self, args):
-        return sorted(self.devices.values(),
-                      key=lambda d: d._sortable_specified(args))
+    def devices_sorted(self):
+        if args.sorts:
+            return sorted(self.devices.values(),
+                          key=lambda d: d._sortable_specified(args))
 
-    def devices_smart_order(self):
+        # smart order
         todo = set(self.devices.keys()}
 
         held_by = collections.defaultdict(list)

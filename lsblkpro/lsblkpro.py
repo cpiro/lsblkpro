@@ -167,12 +167,8 @@ def width_for_column(label, rows):
 
 def display_order_for(host, args):
     rows = []
-    if args.sorts:
-        devices = host.devices_specified_order(args)
-    else:
-        devices = host.devices_smart_order()
 
-    for dev in devices:
+    for dev in host.devices_sorted(args):
         _dev = dev.data
         rows.append(_dev)
         if args.only_devices:
