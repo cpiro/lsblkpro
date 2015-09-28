@@ -175,27 +175,27 @@ def display_order_for(host, args):
             assert part.lsblk['PKNAME'] == device.name
             yield part
 
-def apply_filters(rows, args):
+def apply_filters(row_ents, args):
     filter_log = []
     # xxx allow relative by parsing sizes
     for f in args.filters:
         if '=~' in f:
             lhs, rhs = f.split('=~', 1)
             filter_log.append("{} matches regexp /{}/".format(lhs, rhs))
-            rows = filter(lambda ent: re.match(rhs, ent._sort_value(lhs), rows))
+            row_ents = filter(lambda ent: re.match(rhs, ent._sort_value(lhs), row_ents))
         elif '=' in f:
             lhs, rhs = f.split('=', 1)
             filter_log.append("{} = {}".format(lhs, rhs))
-            rows = filter(lambda ent: ent._sort_value(lhs) == rhs, rows)
+            row_ents = filter(lambda ent: ent._sort_value(lhs) == rhs, row_ents)
         elif '!=' in f:
             lhs, rhs = f.split('!=', 1)
             filter_log.append("{} != {}".format(lhs, rhs))
-            rows = filter(lambda ent: ent._sort_value(lhs) != rhs, rows)
+            row_ents = filter(lambda ent: ent._sort_value(lhs) != rhs, row_ents)
         else:
             filter_log.append("{} is set".format(f))
-            rows = filter(lambda ent: ent._sort_value(f), rows)
+            row_ents = filter(lambda ent: ent._sort_value(f), row_ents)
 
-    return rows, filter_log
+    return row_ents, filter_log
 
 def figure_out_labels(rows, args):
     omit = {
@@ -253,42 +253,58 @@ def figure_out_labels(rows, args):
 
     return width_label_pairs, every_device_has, omit, overflow
 
-def munge(host, rows):
-    def display_name_for(ent, *, last):
-        name = ent.lsblk['KNAME']
-        if ent.lsblk['NAME'] != name:
-            name += '={}'.format(ent.lsblk['NAME'])
-        vdev = ('•{}'.format(ent.by['vdev']) if (ent.by.get('vdev') and
-                                                 isinstance(ent, data.Partition))
-                                             else '')
-        typ = ('•({})'.format(ent.lsblk['TYPE']) if not (ent.lsblk.get('TYPE')
+class Row:
+    def __init__(self, ent):
+        self.ent = ent
+        self.is_partition = isinstance(ent, data.Partition)
+        self.display_name = None
+        self.location = None
+
+    @property
+    def show_fstype(self):
+        return self.ent.lsblk['FSTYPE'] not in ('', 'linux_raid_member', 'zfs_member')
+
+    #xxx
+    #def show_BY-vdev-if-partition(self): False
+
+
+    def _display_name(self, *, last):
+        lsblk, by = self.ent.lsblk, self.ent.by
+
+        name = lsblk['KNAME']
+        if lsblk['NAME'] != name:
+            name += '={}'.format(lsblk['NAME'])
+        vdev = ('•{}'.format(by['vdev']) if (by.get('vdev') and
+                                             isinstance(self.ent, data.Partition))
+                                         else '')
+        typ = ('•({})'.format(lsblk['TYPE']) if not (lsblk.get('TYPE')
                                                            in (None, 'disk', 'part', 'md')
-                                                         or (ent.lsblk.get('TYPE') == 'loop'
-                                                             and ent.name.startswith('loop')))
+                                                         or (lsblk.get('TYPE') == 'loop'
+                                                             and self.ent.name.startswith('loop')))
                                            else '')
 
-        if isinstance(ent, data.Partition):
+        if isinstance(self.ent, data.Partition):
             return (BOX_END if last else BOX_MID) + name + vdev + typ
         else:
             return name + vdev + typ
 
-    def location_for(ent):
+    @property
+    def location(self):
         mnt = ent.lsblk.get('MOUNTPOINT')
         holders = '[{}]'.format(', '.join(ent.holder_names)) if ent.holder_names else ''
-        assert len(filter((ent.zpath, mnt)) <= 1
+        assert len(filter((ent.zpath, mnt))) <= 1
         return ' '.join(filter((ent.zpath, mnt, holders)))
 
-    for ii, ent in enumerate(rows):
-        try:
-            last = isinstance(rows[ii+1], data.Device)
-        except IndexError:
-            last = True
-        ent['displayname'] = display_name_for(ent, last=last)
-        if ent['name'] in partitions:
-            ent['by-vdev'] = ''
-        if ent['FSTYPE'] in ('', 'linux_raid_member', 'zfs_member'):
-            ent['FSTYPE'] = ''
-        ent['location'] = location_for(ent)
+    @staticmethod
+    def rows_for(host, row_ents):
+        for ii, ent in enumerate(row_ents):
+            try:
+                last = isinstance(row_ents[ii+1], data.Device)
+            except IndexError:
+                last = True
+            row = Row(ent)
+            row.display_name = row._display_name(last=last)
+            yield row
 
 def munge_highlights(rows, field):
     if field is None:
@@ -404,12 +420,12 @@ def main():
         sys.exit(0)
 
     # compute rows (each device followed by its partitions)
-    rows = display_order_for(host, args)
-    rows, filter_log = apply_filters(rows, args)
-    rows = list(rows)
+    row_ents = display_order_for(host, args)
+    row_ents, filter_log = apply_filters(row_ents, args)
+    row_ents = list(row_ents)
 
     # munge
-    munge(host, rows)
+    rows = Row.rows_for(host, row_ents)
     munge_highlights(rows, args.highlight)
 
     # figure out labels
