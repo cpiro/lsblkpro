@@ -8,16 +8,28 @@ import collections
 
 CLI_UTILS_ENCODING = sys.stdout.encoding
 
-class Device:
+class Entity:
     def __init__(self, name):
         self.name = name
-        self.partitions = None
+        self.lsblk = None
+        self.by = {}
         self.holder_names = None
+
+    # xxx do not want
+    @property
+    def _row(self):
+        d = self.lsblk.copy()
+        for k, v in self.by:
+            d['by-' + k] = v
+        return d
+
+class Device(Entity):
+    def __init__(self, name):
+        super().__init__(name)
+        self.partitions = None
         self.size = None
         self.major = None
         self.minor = None
-        self.lsblk = None
-        self.by = {}
         self.zpath = None
 
     @staticmethod
@@ -88,13 +100,10 @@ class Device:
             num = num * 26 + (ord(l.lower()) - ord('a')) + 1
         return num - 1
 
-class Partition:
+class Partition(Entity):
     def __init__(self, name, device):
-        self.name = name
+        super().__init__(name)
         self.device = device
-        self.holder_names = None
-        self.lsblk = None
-        self.by = {}
 
     @staticmethod
     def from_sysfs(name, device):
