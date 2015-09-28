@@ -129,7 +129,7 @@ class Host:
         else:
             raise KeyError()
 
-    def devices_sorted(self):
+    def devices_sorted(self, args):
         if args.sorts:
             return sorted(self.devices.values(),
                           key=lambda d: d._sortable_specified(args))
