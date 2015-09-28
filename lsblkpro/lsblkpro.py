@@ -398,26 +398,19 @@ def main():
     else:
         BOX_MID, BOX_END = ' |- ', ' `- '
 
+    # data
     if args.load_data:
         import pickle
         with open('data', 'rb') as f:
-            pickled = pickle.load(f)
-            devices, partitions, missing_from_lsblk, zvols = (
-                pickled[k] for k in ('devices', 'partitions', 'missing_from_lsblk', 'zvols'))
+            host = pickle.load(f)
     else:
-        devices, partitions, missing_from_lsblk = data.get_data(args)
-        zvols = {name: zvol for name, zvol in data.walk_dev_zvol()}
+        host = data.Host.go(args)
 
     if args.store_data:
         assert not args.load_data
         import pickle
         with open('data', 'wb') as f:
-            pickle.dump({
-                'devices': devices,
-                'partitions': partitions,
-                'missing_from_lsblk': missing_from_lsblk,
-                'zvols': zvols,
-            }, f)
+            pickle.dump(host, f)
         sys.exit(0)
 
     # compute rows (each device followed by its partitions)
