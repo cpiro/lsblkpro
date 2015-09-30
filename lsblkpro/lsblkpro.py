@@ -3,6 +3,7 @@
 # TODO attach time
 # xxx package desc should include /sys/block
 # 3to2
+## xxx special grid view
 
 import os
 import sys
