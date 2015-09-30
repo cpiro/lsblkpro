@@ -3,7 +3,8 @@
 # TODO attach time
 # xxx package desc should include /sys/block
 # 3to2
-## xxx special grid view
+# xxx special grid view
+# xxx strip -0 in zpaths per pool
 
 import os
 import sys
