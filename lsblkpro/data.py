@@ -181,7 +181,8 @@ def get_data(args):
             elif dev_or_part in partitions:
                 row = partitions[dev_or_part]
             else:
-                assert False, (kind, fn, dev_or_part)
+                print(kind, fn, dev_or_part)  # xxx print these at outer level in "Present in sysfs but not lsblk"
+                #assert False,
 
             if kind == 'by-partuuid':
                 assert row['PARTUUID'] == fn
