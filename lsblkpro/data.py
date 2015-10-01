@@ -16,6 +16,24 @@ class Entity:
         self.by = {}
         self.holder_names = None
 
+    def _sort_value(self, key, default=None):
+        value = self.lsblk.get(key.upper())
+        if value:
+            return value
+
+        value = self.by.get(key)
+        if value:
+            return value
+
+        if key.startswith('by-'):
+            value = self.by.get(key[3:])
+            return value
+
+        if default is not None:
+            return default
+        else:
+            raise KeyError("entity '{}' has no key '{}'".format(self.name, key))
+
 class Device(Entity):
     def __init__(self, name):
         super().__init__(name)
@@ -56,21 +74,6 @@ class Device(Entity):
                     in re.findall(r'(?:^[a-z]{2}-?|[a-z]+|\d+)', self.name))
         assert ''.join(str(part) for part in tup) == self.name
         return tup
-
-    def _sort_value(self, key):
-        value = self.lsblk.get(key.upper())
-        if value:
-            return value
-
-        value = self.by.get(key)
-        if value:
-            return value
-
-        if key.startswith('by-'):
-            value = self.by.get(key[3:])
-            return value
-
-        raise KeyError("device '{}' has no key '{}'".format(self.name, key))
 
     def _sortable_specified(self, args):
         return ([self._sort_name(key) for key in args.sorts] +

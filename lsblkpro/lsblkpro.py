@@ -211,8 +211,9 @@ def figure_out_labels(rows, args):
     omit -= set(args.include)
 
     every_device_has = []
+
     for candidate, reference in DUPLICATES:
-        if all(row.get(candidate, '') == row.get(reference, '') for row in rows):
+        if all(row.ent._sort_value(candidate, '') == row.ent._sort_value(reference, '') for row in rows):
             every_device_has.append((candidate, '<{}>'.format(reference)))
             omit.add(candidate)
 
