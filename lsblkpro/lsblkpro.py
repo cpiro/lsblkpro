@@ -148,6 +148,10 @@ def terminal_size():
                            struct.pack('HHHH', 0, 0, 0, 0)))
     return h, w
 
+class Table:
+    def __init__(self, rows):
+        self.rows = list(rows)
+
 class View:
     def __init__(self, rows):
         self.rows = list(rows)
