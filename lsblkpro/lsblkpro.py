@@ -29,9 +29,24 @@ pp = pprint.pprint
 
 from . import data
 
-always_interesting = set('SIZE')
+FORMAT_OPTIONS = {
+    'displayname': '<',
+    'location': '<',
+    'TRAN': '>',
+    'HCTL': '<',
+    'by-id': '<',
+    'by-path': '<',
+    'name': '<',
+    'NAME': '<',
+    'KNAME': '<',
+    'zpool': '>',
+    'by-vdev': '>',
+    'MOUNTPOINT': '<',
+}
 
-importance = [
+ALWAYS_INTERESTING = set('SIZE')
+
+IMPORTANCE = [
     'displayname',
     'location',
 
@@ -133,40 +148,6 @@ def terminal_size():
                            struct.pack('HHHH', 0, 0, 0, 0)))
     return h, w
 
-def label_to_str(_, l, width=None):
-    if l == 'displayname':
-        return 'DEVICE'
-    elif l == 'location':
-        return ''
-    elif l.startswith('by-'):
-        return l[3:]
-    else:
-        return l
-
-def value_to_str(row, label):
-    if label == 'MAJ:MIN':  # align the colons
-        v = ' ' * (3-row[label].index(':')) + row[label]
-        return v + ' ' * (7-len(v))
-    elif label in row:
-        return str(row[label])
-    else:
-        return ''
-
-def value_to_str_bullets(r, l, width):
-    s = value_to_str(r, l)
-    if '•' in s:
-        a, b = s.split('•')
-        sep = ' ' * (width - len(a) - len(b))
-        return a + sep + b
-    else:
-        return s
-
-def width_for_column(label, rows):
-    return max(
-        len(label_to_str(label, label)),
-        max(len(value_to_str(row, label)) for row in rows)
-    )
-
 def display_order_for(host, args):
     for device in host.devices_sorted(args):
         yield device
@@ -200,68 +181,182 @@ def apply_filters(row_ents, args):
 
     return row_ents, filter_log
 
-def figure_out_labels(rows, args):
-    omit = {
-        'NAME', 'PKNAME', 'name', 'zpath', 'MOUNTPOINT', 'TYPE', 'by-vdev', 'holders', 'partitions', # used by munge
-        'major', 'minor',  'size', # xxx
-        'MODEL', # boring
-    }
+class View:
+    def __init__(self, rows):
+        self.rows = list(rows)
 
-    omit.update(args.exclude)
-    omit -= set(args.include)
+        # _figure_out_labels
+        self.width_label_pairs = None
+        self.every_device_has = None
+        self.omit = None
+        self.overflow = None
+        self.missing_labels = None
 
-    every_device_has = []
+    def _figure_out_labels(self, args):
+        always_interesting = ALWAYS_INTERESTING.copy()
+        importance = IMPORTANCE.copy()
 
-    for candidate, reference in DUPLICATES:
-        if all(row.ent._sort_value(candidate, '') == row.ent._sort_value(reference, '') for row in rows):
-            every_device_has.append((candidate, '<{}>'.format(reference)))
-            omit.add(candidate)
+        omit = {
+            'NAME', 'PKNAME', 'name', 'zpath', 'MOUNTPOINT', 'TYPE', 'by-vdev', 'holders', 'partitions', # used by munge
+            'major', 'minor',  'size', # xxx
+            'MODEL', # boring
+        }
 
-    width_label_pairs = []
-    overflow = []
-    running_width = 0
-    if args.all_columns:
-        width_limit = None
-    else:
-        try:
-            _, width_limit = terminal_size()
-            width_limit -= 1
-            # xxx if output is not a tty then be sure not to limit width
-        except Exception:
+        omit.update(args.exclude)
+        omit -= set(args.include)
+
+        every_device_has = []
+
+        for candidate, reference in DUPLICATES:
+            if all(row.ent._sort_value(candidate, '') ==
+                   row.ent._sort_value(reference, '') for row in self.rows):
+                every_device_has.append((candidate, '<{}>'.format(reference)))
+                omit.add(candidate)
+
+        width_label_pairs = []
+        overflow = []
+        running_width = 0
+        if args.all_columns:
             width_limit = None
-
-    for label in args.include:
-        # xxx check that it's a valid label, warn otherwise
-        importance.remove(label)
-        always_interesting.add(label)
-    importance[2:1+len(args.include)] = args.include
-
-    for label in importance:
-        if label in omit:
-            continue
-
-        values_in_this_column = set(value_to_str(r, label) for r in rows)
-        if (label in always_interesting or
-            not (len(rows) == 1 or len(values_in_this_column) == 1)):
-            width = width_for_column(label, rows)
-
-            if width_limit is not None and running_width + width > width_limit:
-                overflow.append(label)
-            else:
-                running_width += width + 1
-                width_label_pairs.append((width, label))
         else:
-            val = values_in_this_column.pop()
-            if val:
-                every_device_has.append((label, val))
+            try:
+                _, width_limit = terminal_size()
+                width_limit -= 1
+                # xxx if output is not a tty then be sure not to limit width
+            except Exception:
+                width_limit = None
 
-    return width_label_pairs, every_device_has, omit, overflow
+        for label in args.include:
+            # xxx check that it's a valid label, warn otherwise
+            importance.remove(label)
+            always_interesting.add(label)
+        importance[2:1+len(args.include)] = args.include
+
+        for label in importance:
+            if label in omit:
+                continue
+
+            values_in_this_column = set(row.value_to_str(label) for row in self.rows)
+            if (label in always_interesting or
+                not (len(self.rows) == 1 or len(values_in_this_column) == 1)):
+                width = self.width_for_column(label)
+
+                if width_limit is not None and running_width + width > width_limit:
+                    overflow.append(label)
+                else:
+                    running_width += width + 1
+                    width_label_pairs.append((width, label))
+            else:
+                val = values_in_this_column.pop()
+                if val:
+                    every_device_has.append((label, val))
+
+        # labels in `rows` not in importance or omit
+        all_labels = set()
+        for row in self.rows:  # victoresque
+            all_labels |= set(row)
+
+        missing_labels = all_labels - set(importance) - omit
+
+        # print
+        def column_order(elt):
+            w, l = elt
+            if l in SORT_ORDER:
+                return SORT_ORDER[l]
+            else:
+                return w + 1000 # shorter ones first
+
+        self.width_label_pairs = sorted(width_label_pairs, key=column_order)
+
+        self.every_device_has = every_device_has
+        self.omit = omit
+        self.overflow = overflow
+        self.missing_labels = missing_labels
+
+    def print_table(self):
+        self._print_row({l: l for w, l in self.width_label_pairs}, header=True)
+        for row in self.rows:
+            self._print_row(row, header=False)
+
+    def width_for_column(self, label):
+        return max(
+            len(View.label_to_str(label, label)),
+            max(len(row.value_to_str(label)) for row in self.rows)
+        )
+
+    @staticmethod
+    def label_to_str(label, width=None):
+        if label == 'displayname':
+            return 'DEVICE'
+        elif label == 'location':
+            return ''
+        elif label.startswith('by-'):
+            return label[3:]
+        else:
+            return label
+
+    def _print_row(self, row, header=False):
+        def get_format(l, w):
+            fmt = FORMAT_OPTIONS.get(l)
+            if fmt in ('>', '<'):
+                fmt += str(w)
+            elif fmt is None:
+                fmt = '>' + str(w)
+            return fmt
+
+        if header:
+            cells = ("{0:{fmt}}".format(View.label_to_str(l, width=w), fmt=get_format(l, w))
+                     for w, l in self.width_label_pairs)
+        else:
+            cells = ("{0:{fmt}}".format(row.value_to_str_bullets(l, width=w), fmt=get_format(l, w))
+                     for w, l in self.width_label_pairs)
+        line = ' '.join(cells)
+
+        if isinstance(row, Row) and row.color is not None:
+            line = color + line + '\033[0m'
+
+        print(line)
+
 
 class Row:
     def __init__(self, ent):
         self.ent = ent
         self.is_partition = isinstance(ent, data.Partition)
         self.display_name = None
+
+        self.color = None # xxx
+
+    def __iter__(self):
+        yield from self.ent.lsblk.keys()
+        yield from self.ent.by.keys()
+
+    def __getitem__(self, label):
+        return self.ent._sort_value(label)
+
+    def __contains__(self, label):
+        try:
+            self.ent._sort_value(label)
+            return True
+        except KeyError:
+            return False
+
+    def value_to_str(self, label):
+        if label == 'MAJ:MIN':  # align the colons
+            v = ' ' * (3-self[label].index(':')) + self[label]
+            return v + ' ' * (7-len(v))
+        elif label in self:
+            return str(self[label])
+        else:
+            return ''
+
+    def value_to_str_bullets(self, label, width):
+        st = self.value_to_str(label)
+        if '•' in st:
+            a, b = st.split('•')
+            sep = ' ' * (width - len(a) - len(b))
+            return a + sep + b
+        else:
+            return st
 
     @property
     def show_fstype(self):
@@ -325,46 +420,7 @@ def munge_highlights(rows, field):
             except IndexError:
                 print("fatal: not enough colors to highlight by '{}'".format(field))
                 sys.exit(0)
-        row['$color'] = color_table[row[field]]
-
-def print_table(width_label_pairs, rows):
-    format_options = {
-        'displayname': '<',
-        'location': '<',
-        'TRAN': '>',
-        'HCTL': '<',
-        'by-id': '<',
-        'by-path': '<',
-        'name': '<',
-        'NAME': '<',
-        'KNAME': '<',
-        'zpool': '>',
-        'by-vdev': '>',
-        'MOUNTPOINT': '<',
-        }
-
-    def print_row(r, xform):
-        def get_format(l, w):
-            fmt = format_options.get(l)
-            if fmt in ('>', '<'):
-                fmt += str(w)
-            elif fmt is None:
-                fmt = '>' + str(w)
-            return fmt
-
-        cells = ("{0:{fmt}}".format(xform(r, l, width=w), fmt=get_format(l, w))
-                 for w, l in width_label_pairs)
-        line = ' '.join(cells)
-
-        color = r.get('$color')
-        if color is not None:
-            line = color + line + '\033[0m'
-
-        print(line)
-
-    print_row({l: l for w, l in width_label_pairs}, label_to_str)
-    for r in rows:
-        print_row(r, value_to_str_bullets)
+        row.color = color_table[row[field]]
 
 def main():
     # argparse
@@ -431,9 +487,8 @@ def main():
     # munge
     rows = Row.rows_for(host, row_ents)
     # xxx munge_highlights(rows, args.highlight)
-
-    # figure out labels
-    width_label_pairs, every_device_has, omit, overflow = figure_out_labels(rows, args)
+    view = View(rows)
+    view._figure_out_labels(args)
 
     # pre-print
     if filter_log:
@@ -442,35 +497,20 @@ def main():
             print("  {}".format(f))
         print()
 
-    if every_device_has:
+    if view.every_device_has:
         print("Every device has these fields:")
-        lwidth = max(len(l) for l, _ in every_device_has)
-        for l, v in every_device_has:
+        lwidth = max(len(l) for l, _ in view.every_device_has)
+        for l, v in view.every_device_has:
             print("  {0:{lwidth}} = {1}".format(l, v, lwidth=lwidth))
         print()
 
-    # labels in `rows` not in importance or omit
-    all_labels = set()
-    for row in rows:  # victoresque
-        all_labels |= row.keys()
+    if view.missing_labels:
+        print("Missing labels:\n  {}\n".format(', '.join(sorted(view.missing_labels))))
 
-    missing_labels = all_labels - set(importance) - omit
-    if missing_labels:
-        print("Missing labels:\n  {}\n".format(', '.join(sorted(missing_labels))))
+    if view.overflow:
+        print("Overflowing labels:\n  {}\n".format(', '.join(sorted(view.overflow))))
 
-    if overflow:
-        print("Overflowing labels:\n  {}\n".format(', '.join(sorted(overflow))))
+    if host.missing_from_lsblk:
+        print("Present in sysfs but not in `lsblk`:\n  {}\n".format(', '.join(host.missing_from_lsblk)))
 
-    if missing_from_lsblk:
-        print("Present in sysfs but not in `lsblk`:\n  {}\n".format(', '.join(sorted(missing_from_lsblk, key=dev_name_split))))
-
-    # print
-    def column_order(elt):
-        w, l = elt
-        if l in SORT_ORDER:
-            return SORT_ORDER[l]
-        else:
-            return w + 1000 # shorter ones first
-
-    width_label_pairs.sort(key=column_order)
-    print_table(width_label_pairs, rows)
+    view.print_table()
