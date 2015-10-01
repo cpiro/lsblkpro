@@ -5,6 +5,7 @@
 # 3to2
 # xxx special grid view
 # xxx strip -0 in zpaths per pool
+# xxx iostat column?
 
 import os
 import sys
