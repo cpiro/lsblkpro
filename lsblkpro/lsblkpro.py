@@ -148,39 +148,6 @@ def terminal_size():
                            struct.pack('HHHH', 0, 0, 0, 0)))
     return h, w
 
-def display_order_for(host, args):
-    for device in host.devices_sorted(args):
-        yield device
-        if args.only_devices:
-            continue
-        if (device.by.get('vdev') or device.zpath) and not args.all_devices:
-            continue
-        for part in device.partitions:
-            assert part.lsblk['PKNAME'] == device.name
-            yield part
-
-def apply_filters(row_ents, args):
-    filter_log = []
-    # xxx allow relative by parsing sizes
-    for f in args.filters:
-        if '=~' in f:
-            lhs, rhs = f.split('=~', 1)
-            filter_log.append("{} matches regexp /{}/".format(lhs, rhs))
-            row_ents = filter(lambda ent: re.match(rhs, ent._sort_value(lhs), row_ents))
-        elif '=' in f:
-            lhs, rhs = f.split('=', 1)
-            filter_log.append("{} = {}".format(lhs, rhs))
-            row_ents = filter(lambda ent: ent._sort_value(lhs) == rhs, row_ents)
-        elif '!=' in f:
-            lhs, rhs = f.split('!=', 1)
-            filter_log.append("{} != {}".format(lhs, rhs))
-            row_ents = filter(lambda ent: ent._sort_value(lhs) != rhs, row_ents)
-        else:
-            filter_log.append("{} is set".format(f))
-            row_ents = filter(lambda ent: ent._sort_value(f), row_ents)
-
-    return row_ents, filter_log
-
 class View:
     def __init__(self, rows):
         self.rows = list(rows)
@@ -480,9 +447,40 @@ def main():
         sys.exit(0)
 
     # compute rows (each device followed by its partitions)
-    row_ents = display_order_for(host, args)
-    row_ents, filter_log = apply_filters(row_ents, args)
-    row_ents = list(row_ents)
+    def display_order_for():
+        for device in host.devices_sorted(args):
+            yield device
+            if args.only_devices:
+                continue
+            if (device.by.get('vdev') or device.zpath) and not args.all_devices:
+                continue
+            for part in device.partitions:
+                assert part.lsblk['PKNAME'] == device.name
+                yield part
+
+    def apply_filters(row_ents):
+        filter_log = []
+        # xxx allow relative by parsing sizes
+        for f in args.filters:
+            if '=~' in f:
+                lhs, rhs = f.split('=~', 1)
+                filter_log.append("{} matches regexp /{}/".format(lhs, rhs))
+                row_ents = filter(lambda ent: re.match(rhs, ent._sort_value(lhs), row_ents))
+            elif '=' in f:
+                lhs, rhs = f.split('=', 1)
+                filter_log.append("{} = {}".format(lhs, rhs))
+                row_ents = filter(lambda ent: ent._sort_value(lhs) == rhs, row_ents)
+            elif '!=' in f:
+                lhs, rhs = f.split('!=', 1)
+                filter_log.append("{} != {}".format(lhs, rhs))
+                row_ents = filter(lambda ent: ent._sort_value(lhs) != rhs, row_ents)
+            else:
+                filter_log.append("{} is set".format(f))
+                row_ents = filter(lambda ent: ent._sort_value(f), row_ents)
+
+        return list(row_ents), filter_log
+
+    row_ents, filter_log = apply_filters(display_order_for())
 
     # munge
     rows = Row.rows_for(host, row_ents)
