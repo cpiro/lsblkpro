@@ -309,6 +309,7 @@ class Row:
             row.display_name = row._display_name(last=last)
             yield row
 
+# xxx
 def munge_highlights(rows, field):
     if field is None:
         return
@@ -429,7 +430,7 @@ def main():
 
     # munge
     rows = Row.rows_for(host, row_ents)
-    munge_highlights(rows, args.highlight)
+    # xxx munge_highlights(rows, args.highlight)
 
     # figure out labels
     width_label_pairs, every_device_has, omit, overflow = figure_out_labels(rows, args)
