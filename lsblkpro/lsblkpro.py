@@ -224,7 +224,14 @@ class Column:
 
     def cell_for(self, row):
         if self.idx is None:
-            return str(getattr(row, self.attr))
+            try:
+                v = getattr(row, self.attr)
+                return str(v)
+            except AttributeError:
+                pass
+
+            v = getattr(row.ent, self.attr)
+            return str(v)
         else:
             return str(getattr(row.ent, self.attr)[self.idx])
 
