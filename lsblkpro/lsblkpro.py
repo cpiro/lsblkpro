@@ -195,6 +195,9 @@ class Column:
         return self.key
 
     def cell_for(self, row): # xxx None |-> ''
+        if self.key == 'FSTYPE' and not row.show_fstype:
+            return ''
+
         lookups = (
             getattr(row, self.key, None),
             getattr(row.ent, self.key, None),
@@ -239,7 +242,7 @@ class Table:
         unique = {key for key, col in self.cols.items()
                   if col.unique and key not in ALWAYS_INTERESTING
                  } if len(self.rows) > 1 else {}
-        omit = OMIT | unique - set(a for a, b in duplicates) | set(exclude) - set(include)
+        omit = OMIT | set(a for a, b in duplicates) | unique | set(exclude) - set(include)
 
         def importance_order(key):
             if key in include:
@@ -262,6 +265,7 @@ class Table:
             else:
                 overflow.append(key)
 
+        self.duplicates = duplicates
         self.overflow = overflow
         self.columns = sorted(columns, key=lambda k: DISPLAY_ORDER.get(k, 9999))
 
@@ -276,6 +280,14 @@ class Table:
                    for row in self.rows)
 
     def print_(self):
+        if self.duplicates:
+            print("Every device has these fields:")
+            lwidth = max(len(a) for a, _ in self.duplicates)
+            for a, b in self.duplicates:
+                print("  {0:{lwidth}} = <{1}>".format(a, b, lwidth=lwidth))
+            print()
+
+
         line = ' '.join(self.cols[col].formatted_cell_for(None) for col in self.columns)
         print('\033[1m' + line + '\033[0m')
 
@@ -499,13 +511,6 @@ def main():
         print("Showing only entries where:")
         for f in filter_log:
             print("  {}".format(f))
-        print()
-
-    if view.every_device_has:
-        print("Every device has these fields:")
-        lwidth = max(len(l) for l, _ in view.every_device_has)
-        for l, v in view.every_device_has:
-            print("  {0:{lwidth}} = {1}".format(l, v, lwidth=lwidth))
         print()
 
     if view.missing_labels:
