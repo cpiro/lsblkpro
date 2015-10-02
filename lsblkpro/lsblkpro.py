@@ -206,7 +206,18 @@ class Column:
         if matches:
             return str(matches[0])
         else:
-            return '<empty>'
+            return ''
+
+    def formatted_cell_for(self, row): # row=None means header
+        fmt = FORMAT_OPTIONS.get(self.key)
+        if fmt in ('>', '<'):
+            fmt += str(self.width)
+        elif fmt is None:
+            fmt = '>' + str(self.width)
+        if row is None:
+            return "{0:{fmt}}".format(self.header_cell, fmt=fmt)
+        else:
+            return "{0:{fmt}}".format(self.cell_for(row), fmt=fmt)
 
     class DefaultDict(collections.defaultdict):
         def __missing__(self, v):
@@ -247,13 +258,12 @@ class Table:
             col = self.cols[key]
             if width_limit is None or col.width <= remaining_width:
                 columns.append(key)
-                remaining_width -= col.width
+                remaining_width -= col.width + 1
             else:
                 overflow.append(key)
 
         self.overflow = overflow
         self.columns = sorted(columns, key=lambda k: DISPLAY_ORDER.get(k, 9999))
-        print(self.columns)
 
     def are_duplicates(self, a, b):
         try:
@@ -266,47 +276,14 @@ class Table:
                    for row in self.rows)
 
     def print_(self):
-        print('-----\n hai \n----\n')
+        line = ' '.join(self.cols[col].formatted_cell_for(None) for col in self.columns)
+        print('\033[1m' + line + '\033[0m')
 
-
-class View:
-    def __init__(self, rows):
-        self.rows = list(rows)
-
-        # _figure_out_labels
-        self.width_label_pairs = None
-        self.every_device_has = None
-        self.omit = None
-        self.overflow = None
-        self.missing_labels = None
-
-    def print_table(self):
-        self._print_row({l: l for w, l in self.width_label_pairs}, header=True)
         for row in self.rows:
-            self._print_row(row, header=False)
+            line = ' '.join(self.cols[col].formatted_cell_for(row) for col in self.columns)
+            print(row.color + line)
 
-    def _print_row(self, row, header=False):
-        def get_format(l, w):
-            fmt = FORMAT_OPTIONS.get(l)
-            if fmt in ('>', '<'):
-                fmt += str(w)
-            elif fmt is None:
-                fmt = '>' + str(w)
-            return fmt
-
-        if header:
-            cells = ("{0:{fmt}}".format(View.label_to_str(l, width=w), fmt=get_format(l, w))
-                     for w, l in self.width_label_pairs)
-        else:
-            cells = ("{0:{fmt}}".format(row.value_to_str_bullets(l, width=w), fmt=get_format(l, w))
-                     for w, l in self.width_label_pairs)
-        line = ' '.join(cells)
-
-        if isinstance(row, Row) and row.color is not None:
-            line = color + line + '\033[0m'
-
-        print(line)
-
+        print(self.overflow)
 
 class Row:
     def __init__(self, ent):
@@ -314,7 +291,7 @@ class Row:
         self.is_partition = isinstance(ent, data.Partition)
         self.display_name = None
 
-        self.color = None # xxx
+        self.color = '' # xxx
 
     def __iter__(self):
         yield from ('display_name', 'location', 'zpath')
