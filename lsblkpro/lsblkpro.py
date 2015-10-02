@@ -105,7 +105,7 @@ IMPORTANCE_ORDER = {key: ii for ii, key in enumerate([
     'WSAME',
 ])}
 
-SORT_ORDER = {key: ii for ii, key in enumerate([
+DISPLAY_ORDER = {key: ii for ii, key in enumerate([
     'display_name',
     'vdev',
     'location',
@@ -225,20 +225,35 @@ class Table:
                 col.update(row)
 
         duplicates = {(a, b) for a, b in DUPLICATES if self.are_duplicates(a, b)}
-        unique = {key for key, col in self.cols.items() if col.unique and key not in ALWAYS_INTERESTING}
+        unique = {key for key, col in self.cols.items()
+                  if col.unique and key not in ALWAYS_INTERESTING
+                 } if len(self.rows) > 1 else {}
         omit = OMIT | unique - set(a for a, b in duplicates) | set(exclude) - set(include)
 
         def importance_order(key):
             if key in include:
-                return -99999
+                return -9999
             else:
-                return IMPORTANCE_ORDER.get(key, 99999)
+                return IMPORTANCE_ORDER.get(key, 9999)
 
         importance = sorted((col for col in self.cols if col not in omit),
                             key=importance_order)
-        print(importance)
-        remaining_width = width_limit
 
+        remaining_width = width_limit
+        # pack columns into allotted width (greedy)
+        columns = []
+        overflow = []
+        for key in importance:
+            col = self.cols[key]
+            if width_limit is None or col.width <= remaining_width:
+                columns.append(key)
+                remaining_width -= col.width
+            else:
+                overflow.append(key)
+
+        self.overflow = overflow
+        self.columns = sorted(columns, key=lambda k: DISPLAY_ORDER.get(k, 9999))
+        print(self.columns)
 
     def are_duplicates(self, a, b):
         try:
