@@ -291,14 +291,16 @@ class Table:
                 print("  {0:{lwidth}} = {1}".format(k, self.cols[k].unique_value, lwidth=lwidth))
             print()
 
+        if self.overflow:
+            print("Overflowing labels:\n  {}\n".format(', '.join(sorted(self.overflow))))
+
+
         line = ' '.join(self.cols[col].formatted_cell_for(None) for col in self.columns)
         print('\033[1m' + line + '\033[0m')
 
         for row in self.rows:
             line = ' '.join(self.cols[col].formatted_cell_for(row) for col in self.columns)
             print(row.color + line)
-
-        print(self.overflow)
 
 class Row:
     def __init__(self, ent):
@@ -503,6 +505,9 @@ def main():
     #view = View(rows)
     #view._figure_out_labels(args)
 
+    if host.missing_from_lsblk:
+        print("Present in sysfs but not in `lsblk`:\n  {}\n".format(', '.join(host.missing_from_lsblk)))
+
     rows = Row.rows_for(host, row_ents)
     table = Table(rows, width_limit=width_limit(args), include=args.include, exclude=args.exclude)
     table.print_()
@@ -515,14 +520,5 @@ def main():
         for f in filter_log:
             print("  {}".format(f))
         print()
-
-    if view.missing_labels:
-        print("Missing labels:\n  {}\n".format(', '.join(sorted(view.missing_labels))))
-
-    if view.overflow:
-        print("Overflowing labels:\n  {}\n".format(', '.join(sorted(view.overflow))))
-
-    if host.missing_from_lsblk:
-        print("Present in sysfs but not in `lsblk`:\n  {}\n".format(', '.join(host.missing_from_lsblk)))
 
     view.print_table()

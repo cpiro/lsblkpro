@@ -160,7 +160,7 @@ class Host:
         host = Host.from_sysfs(args)
         results = Host.from_lsblk(args)
 
-        host.missing_from_lsblk = set(host.devices.keys()) | set(host.partitions.keys()) - set(result[PRIMARY_KEY] for result in results)
+        host.missing_from_lsblk = (set(host.devices.keys()) | set(host.partitions.keys())) - set(result[PRIMARY_KEY] for result in results)
 
         host._punch_up_lsblk(results)
         host._punch_up_dev_disk()
