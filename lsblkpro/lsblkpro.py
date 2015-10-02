@@ -31,7 +31,7 @@ pp = pprint.pprint
 from . import data
 
 FORMAT_OPTIONS = {
-    'displayname': '<',
+    'display_name': '<',
     'location': '<',
     'TRAN': '>',
     'HCTL': '<',
@@ -48,7 +48,7 @@ FORMAT_OPTIONS = {
 ALWAYS_INTERESTING = set('SIZE')
 
 IMPORTANCE = [
-    'displayname',
+    'display_name',
     'location',
 
     'name',
@@ -99,11 +99,10 @@ IMPORTANCE = [
 ]
 
 SORT_ORDER = {key: value for value, key in enumerate([
-    'displayname',
-    'by-vdev',
+    'display_name',
+    'vdev',
     'location',
 
-    'name',
     'NAME',
     'KNAME',
     'zpath',
@@ -137,10 +136,10 @@ SORT_ORDER = {key: value for value, key in enumerate([
     ])}
 
 DUPLICATES = (
-    ('KNAME', 'name'),
-    ('by-partuuid', 'PARTUUID'),
-    ('by-uuid', 'UUID'),
-    ('by-partlabel', 'PARTLABEL'),
+    ('KNAME', 'NAME'),
+    ('partuuid', 'PARTUUID'),
+    ('uuid', 'UUID'),
+    ('partlabel', 'PARTLABEL'),
 )
 
 def terminal_size():
@@ -161,64 +160,6 @@ def width_limit(args):
             return None
 
 ########
-
-IMPORTANCE_ORDER = [
-    ('display_name', None),
-    ('location', None),
-    ('lsblk', 'NAME'),
-    ('lsblk', 'KNAME'),
-    ('by', 'vdev'),
-    ('lsblk', 'MOUNTPOINT'),
-    ('lsblk', 'SIZE'),
-    # ('size', None),
-    ('lsblk', 'FSTYPE'),
-    ('lsblk', 'HCTL'),
-    ('lsblk', 'MAJ:MIN'),
-    ('lsblk', 'TRAN'),
-    ('lsblk', 'RA'),
-    ('lsblk', 'RQ-SIZE'),
-    ('lsblk', 'OWNER'),
-    ('lsblk', 'GROUP'),
-    ('lsblk', 'MODE'),
-    ('lsblk', 'MODEL'),
-    ('lsblk', 'RO'),
-    ('lsblk', 'RM'),
-    ('by', 'id'),
-    ('by', 'partlabel'),
-    ('by', 'path'),
-    ('lsblk', 'UUID'),
-    ('lsblk', 'ALIGNMENT'),
-    ('lsblk', 'MIN-IO'),
-    ('lsblk', 'OPT-IO'),
-    ('lsblk', 'TYPE'),
-    ('lsblk', 'ROTA'),
-    ('lsblk', 'PHY-SEC'),
-    ('lsblk', 'LOG-SEC'),
-    ('lsblk', 'WWN'),
-    ('lsblk', 'PARTUUID'),
-    ('lsblk', 'PARTTYPE'),
-    ('lsblk', 'PARTLABEL'),
-    ('lsblk', 'SERIAL'),
-    ('lsblk', 'DISC-ALN'),
-    ('lsblk', 'DISC-GRAN'),
-    ('lsblk', 'DISC-MAX'),
-    ('lsblk', 'DISC-ZERO'),
-    ('lsblk', 'STATE'),
-    ('lsblk', 'PARTFLAGS'),
-    ('lsblk', 'LABEL'),
-    ('lsblk', 'SCHED'),
-    ('lsblk', 'VENDOR'),
-    ('lsblk', 'RAND'),
-    ('lsblk', 'REV'),
-    ('lsblk', 'WSAME'),
-]
-
-CANDIDATE_DUPLICATES = (
-    (('lsblk', 'KNAME'), ('name', None)),
-    (('by', 'partuuid'), ('lsblk', 'PARTUUID')),
-    (('by', 'uuid'), ('lsblk', 'UUID')),
-    (('by', 'partlabel'), ('lsblk', 'PARTLABEL')),
-)
 
 class Column:
     def __init__(self, key):
@@ -251,34 +192,30 @@ class Column:
             row.ent.lsblk.get(self.key, None),
             row.ent.by.get(self.key, None),
         )
-        matches = filter(None, lookups)
+        matches = tuple(filter(None, lookups))
         assert len(matches) <= 1, "table key '{}' not unique for {}".format(self.key, row)
         if matches:
             return str(matches[0])
         else:
             return '<empty>'
 
+    class DefaultDict(collections.defaultdict):
+        def __missing__(self, v):
+            col = Column(v)
+            self[v] = col
+            return col
+
 class Table:
     def __init__(self, rows):
         self.rows = list(rows)
-        self.cols = {}  # (attr, idx|None) -> Column
-
-        def op(row, attr, idx):
-            col = self.cols.get((attr, idx))
-            if col is None:
-                col = Column(attr, idx)
-                self.cols[(attr, idx)] = col
-            col.update(row)
+        self.cols = Column.DefaultDict()
 
         for row in self.rows:
-            print(row.ent.name)
-            for attr in ('lsblk', 'by'):
-                for idx in getattr(row.ent, attr):
-                    op(row, attr, idx)
-            for attr in ('display_name', 'location'):
-                op(row, attr, None)
+            for key in row:
+                col = self.cols[key]
+                col.update(row)
 
-        duplicates = [(self.cols[a], self.cols[b]) for a, b in CANDIDATE_DUPLICATES
+        duplicates = [(self.cols[a], self.cols[b]) for a, b in DUPLICATES
                       if self.are_duplicates(a, b)]
         unique = [col for col in self.cols.values() if col.unique]
 
@@ -445,6 +382,7 @@ class Row:
         self.color = None # xxx
 
     def __iter__(self):
+        yield from ('display_name', 'location')
         yield from self.ent.lsblk.keys()
         yield from self.ent.by.keys()
 
