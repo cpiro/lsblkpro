@@ -30,6 +30,10 @@ pp = pprint.pprint
 
 from . import data
 
+def pad_maj_min(text):
+    v = ' ' * (3-text.index(':')) + text
+    return v + ' ' * (7-len(v))
+
 FORMAT_OPTIONS = {
     'display_name': '<',
     'location': '<',
@@ -212,15 +216,26 @@ class Column:
             return ''
 
     def formatted_cell_for(self, row): # row=None means header
+        if row is None:
+            text = self.header_cell
+        else:
+            text = self.cell_for(row)
+
+        if self.key == 'MAJ:MIN':
+            text = pad_maj_min(text)
+
+        if '•' in text:
+            a, b = text.split('•')
+            sep = ' ' * (self.width - len(a) - len(b))
+            text = a + sep + b
+
         fmt = FORMAT_OPTIONS.get(self.key)
         if fmt in ('>', '<'):
             fmt += str(self.width)
         elif fmt is None:
             fmt = '>' + str(self.width)
-        if row is None:
-            return "{0:{fmt}}".format(self.header_cell, fmt=fmt)
-        else:
-            return "{0:{fmt}}".format(self.cell_for(row), fmt=fmt)
+
+        return "{0:{fmt}}".format(text, fmt=fmt)
 
     class DefaultDict(collections.defaultdict):
         def __missing__(self, v):
@@ -305,7 +320,6 @@ class Table:
 class Row:
     def __init__(self, ent):
         self.ent = ent
-        self.is_partition = isinstance(ent, data.Partition)
         self.display_name = None
 
         self.color = '' # xxx
@@ -324,24 +338,6 @@ class Row:
             return True
         except KeyError:
             return False
-
-    def value_to_str(self, label):
-        if label == 'MAJ:MIN':  # align the colons
-            v = ' ' * (3-self[label].index(':')) + self[label]
-            return v + ' ' * (7-len(v))
-        elif label in self:
-            return str(self[label])
-        else:
-            return ''
-
-    def value_to_str_bullets(self, label, width):
-        st = self.value_to_str(label)
-        if '•' in st:
-            a, b = st.split('•')
-            sep = ' ' * (width - len(a) - len(b))
-            return a + sep + b
-        else:
-            return st
 
     @property
     def show_fstype(self):
