@@ -202,15 +202,30 @@ IMPORTANCE_ORDER = [
     ('lsblk', 'WSAME'),
 ]
 
+CANDIDATE_DUPLICATES = (
+    (('lsblk', 'KNAME'), ('name', None)),
+    (('by', 'partuuid'), ('lsblk', 'PARTUUID')),
+    (('by', 'uuid'), ('lsblk', 'UUID')),
+    (('by', 'partlabel'), ('lsblk', 'PARTLABEL')),
+)
 
 class Column:
     def __init__(self, attr, idx):
         self.attr = attr
         self.idx = idx
         self.width = len(self.header_cell)
+        self.unique = True
+        self.unique_value = None
 
-    def update_width(self, row):
-        self.width = max(self.width, len(self.cell_for(row)))
+    def update(self, row):
+        cell = self.cell_for(row)
+        if self.unique:
+            if self.unique_value is None:
+                self.unique_value = cell
+            else:
+                self.unique = (self.unique_value == cell)
+
+        self.width = max(self.width, len(cell))
 
     def __repr__(self):
         return "<{}-{}: w={}>".format(self.attr, self.idx, self.width)
@@ -222,7 +237,7 @@ class Column:
         else:
             return self.idx
 
-    def cell_for(self, row):
+    def cell_for(self, row): # xxx None |-> ''
         if self.idx is None:
             try:
                 v = getattr(row, self.attr)
@@ -245,17 +260,32 @@ class Table:
             if col is None:
                 col = Column(attr, idx)
                 self.cols[(attr, idx)] = col
-            col.update_width(row)
+            col.update(row)
 
         for row in self.rows:
+            print(row.ent.name)
             for attr in ('lsblk', 'by'):
                 for idx in getattr(row.ent, attr):
                     op(row, attr, idx)
             for attr in ('display_name', 'location'):
                 op(row, attr, None)
 
+        duplicates = [(self.cols[a], self.cols[b]) for a, b in CANDIDATE_DUPLICATES
+                      if self.are_duplicates(a, b)]
+        unique = [col for col in self.cols.values() if col.unique]
 
+        print(unique)
         print(self.cols.values())
+
+    def are_duplicates(self, a, b):
+        try:
+            col_a = self.cols[a]
+            col_b = self.cols[b]
+        except KeyError:
+            return False
+
+        return all(col_a.cell_for(row) == col_b.cell_for(row)
+                   for row in self.rows)
 
     def print_(self):
         print('-----\n hai \n----\n')
