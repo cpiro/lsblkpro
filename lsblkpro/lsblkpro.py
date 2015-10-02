@@ -149,6 +149,60 @@ def terminal_size():
                            struct.pack('HHHH', 0, 0, 0, 0)))
     return h, w
 
+########
+
+IMPORTANCE_ORDER = [
+    ('display_name', None),
+    ('location', None),
+    ('lsblk', 'NAME'),
+    ('lsblk', 'KNAME'),
+    ('by', 'vdev'),
+    ('lsblk', 'MOUNTPOINT'),
+    ('lsblk', 'SIZE'),
+    # ('size', None),
+    ('lsblk', 'FSTYPE'),
+    ('lsblk', 'HCTL'),
+    ('lsblk', 'MAJ:MIN'),
+    ('lsblk', 'TRAN'),
+    ('lsblk', 'RA'),
+    ('lsblk', 'RQ-SIZE'),
+    ('lsblk', 'OWNER'),
+    ('lsblk', 'GROUP'),
+    ('lsblk', 'MODE'),
+    ('lsblk', 'MODEL'),
+    ('lsblk', 'RO'),
+    ('lsblk', 'RM'),
+    ('by', 'id'),
+    ('by', 'partlabel'),
+    ('by', 'path'),
+    ('lsblk', 'UUID'),
+    ('lsblk', 'ALIGNMENT'),
+    ('lsblk', 'MIN-IO'),
+    ('lsblk', 'OPT-IO'),
+    ('lsblk', 'TYPE'),
+    ('lsblk', 'ROTA'),
+    ('lsblk', 'PHY-SEC'),
+    ('lsblk', 'LOG-SEC'),
+    ('lsblk', 'WWN'),
+    ('lsblk', 'PARTUUID'),
+    ('lsblk', 'PARTTYPE'),
+    ('lsblk', 'PARTLABEL'),
+    ('lsblk', 'SERIAL'),
+    ('lsblk', 'DISC-ALN'),
+    ('lsblk', 'DISC-GRAN'),
+    ('lsblk', 'DISC-MAX'),
+    ('lsblk', 'DISC-ZERO'),
+    ('lsblk', 'STATE'),
+    ('lsblk', 'PARTFLAGS'),
+    ('lsblk', 'LABEL'),
+    ('lsblk', 'SCHED'),
+    ('lsblk', 'VENDOR'),
+    ('lsblk', 'RAND'),
+    ('lsblk', 'REV'),
+    ('lsblk', 'WSAME'),
+]
+
+
 class Column:
     def __init__(self, attr, idx):
         self.attr = attr
@@ -170,7 +224,7 @@ class Column:
 
     def cell_for(self, row):
         if self.idx is None:
-            return str(getattr(row.ent, self.attr))
+            return str(getattr(row, self.attr))
         else:
             return str(getattr(row.ent, self.attr)[self.idx])
 
@@ -179,19 +233,25 @@ class Table:
         self.rows = list(rows)
         self.cols = {}  # (attr, idx|None) -> Column
 
+        def op(row, attr, idx):
+            col = self.cols.get((attr, idx))
+            if col is None:
+                col = Column(attr, idx)
+                self.cols[(attr, idx)] = col
+            col.update_width(row)
+
         for row in self.rows:
             for attr in ('lsblk', 'by'):
                 for idx in getattr(row.ent, attr):
-                    col = self.cols.get((attr, idx))
-                    if col is None:
-                        col = Column(attr, idx)
-                        self.cols[(attr, idx)] = col
-                    col.update_width(row)
+                    op(row, attr, idx)
+            for attr in ('display_name', 'location'):
+                op(row, attr, None)
+
 
         print(self.cols.values())
 
     def print_(self):
-        print('----\n hai \n----\n')
+        print('-----\n hai \n----\n')
 
 
 class View:
@@ -401,10 +461,10 @@ class Row:
 
     @property
     def location(self):
-        mnt = ent.lsblk.get('MOUNTPOINT')
-        holders = '[{}]'.format(', '.join(ent.holder_names)) if ent.holder_names else ''
-        assert len(filter((ent.zpath, mnt))) <= 1
-        return ' '.join(filter((ent.zpath, mnt, holders)))
+        mnt = self.ent.lsblk.get('MOUNTPOINT')
+        holders = '[{}]'.format(', '.join(self.ent.holder_names)) if self.ent.holder_names else ''
+        assert len(list(filter(None, (self.ent.zpath, mnt)))) <= 1
+        return ' '.join(filter(None, (self.ent.zpath, mnt, holders)))
 
     @staticmethod
     def rows_for(host, row_ents):

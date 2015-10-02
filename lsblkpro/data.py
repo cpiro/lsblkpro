@@ -14,6 +14,7 @@ class Entity:
         self.name = name
         self.lsblk = None
         self.by = {}
+        self.zpath = None
         self.holder_names = None
 
     def _sort_value(self, key, default=None):
@@ -41,7 +42,6 @@ class Device(Entity):
         self.size = None
         self.major = None
         self.minor = None
-        self.zpath = None
 
     @staticmethod
     def from_sysfs(device_name):
