@@ -35,26 +35,33 @@ FORMAT_OPTIONS = {
     'location': '<',
     'TRAN': '>',
     'HCTL': '<',
-    'by-id': '<',
-    'by-path': '<',
+    'id': '<',
+    'path': '<',
     'name': '<',
     'NAME': '<',
     'KNAME': '<',
     'zpool': '>',
-    'by-vdev': '>',
+    'vdev': '>',
     'MOUNTPOINT': '<',
 }
 
 ALWAYS_INTERESTING = set('SIZE')
 
-IMPORTANCE = [
+
+OMIT = {
+    'NAME', 'PKNAME', 'name', 'zpath', 'MOUNTPOINT', 'TYPE', 'vdev', 'holders', 'partitions', # used by munge
+    'major', 'minor',  'size', # xxx
+    'MODEL', # boring
+}
+
+IMPORTANCE_ORDER = {key: ii for ii, key in enumerate([
     'display_name',
     'location',
 
     'name',
     'NAME',
     'KNAME',
-    'by-vdev',
+    'vdev',
     'zpath',
     'MOUNTPOINT',
     'size',
@@ -71,9 +78,9 @@ IMPORTANCE = [
     'MODEL',
     'RO',
     'RM',
-    'by-id',
-    'by-partlabel',
-    'by-path',
+    'id',
+    'partlabel',
+    'path',
     'UUID',
     'ALIGNMENT',
     'MIN-IO',
@@ -96,9 +103,9 @@ IMPORTANCE = [
     'RAND',
     'REV',
     'WSAME',
-]
+])}
 
-SORT_ORDER = {key: value for value, key in enumerate([
+SORT_ORDER = {key: ii for ii, key in enumerate([
     'display_name',
     'vdev',
     'location',
@@ -141,6 +148,8 @@ DUPLICATES = (
     ('uuid', 'UUID'),
     ('partlabel', 'PARTLABEL'),
 )
+
+
 
 def terminal_size():
     h, w, hp, wp = struct.unpack('HHHH',
@@ -206,7 +215,7 @@ class Column:
             return col
 
 class Table:
-    def __init__(self, rows):
+    def __init__(self, rows, width_limit=None, include=[], exclude=[]):
         self.rows = list(rows)
         self.cols = Column.DefaultDict()
 
@@ -215,12 +224,21 @@ class Table:
                 col = self.cols[key]
                 col.update(row)
 
-        duplicates = [(self.cols[a], self.cols[b]) for a, b in DUPLICATES
-                      if self.are_duplicates(a, b)]
-        unique = [col for col in self.cols.values() if col.unique]
+        duplicates = {(a, b) for a, b in DUPLICATES if self.are_duplicates(a, b)}
+        unique = {key for key, col in self.cols.items() if col.unique and key not in ALWAYS_INTERESTING}
+        omit = OMIT | unique - set(a for a, b in duplicates) | set(exclude) - set(include)
 
-        print(unique)
-        print(self.cols.values())
+        def importance_order(key):
+            if key in include:
+                return -99999
+            else:
+                return IMPORTANCE_ORDER.get(key, 99999)
+
+        importance = sorted((col for col in self.cols if col not in omit),
+                            key=importance_order)
+        print(importance)
+        remaining_width = width_limit
+
 
     def are_duplicates(self, a, b):
         try:
@@ -251,12 +269,6 @@ class View:
         always_interesting = ALWAYS_INTERESTING.copy()
         importance = IMPORTANCE.copy()
 
-        omit = {
-            'NAME', 'PKNAME', 'name', 'zpath', 'MOUNTPOINT', 'TYPE', 'by-vdev', 'holders', 'partitions', # used by munge
-            'major', 'minor',  'size', # xxx
-            'MODEL', # boring
-        }
-
         omit.update(args.exclude)
         omit -= set(args.include)
 
@@ -280,6 +292,10 @@ class View:
                 # xxx if output is not a tty then be sure not to limit width
             except Exception:
                 width_limit = None
+
+                ####
+                ####
+                ####
 
         for label in args.include:
             # xxx check that it's a valid label, warn otherwise
@@ -382,7 +398,7 @@ class Row:
         self.color = None # xxx
 
     def __iter__(self):
-        yield from ('display_name', 'location')
+        yield from ('display_name', 'location', 'zpath')
         yield from self.ent.lsblk.keys()
         yield from self.ent.by.keys()
 
@@ -577,7 +593,7 @@ def main():
     #view._figure_out_labels(args)
 
     rows = Row.rows_for(host, row_ents)
-    table = Table(rows)
+    table = Table(rows, width_limit=width_limit(args), include=args.include, exclude=args.exclude)
     table.print_()
 
     sys.exit(0)
