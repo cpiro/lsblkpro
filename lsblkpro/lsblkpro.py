@@ -266,6 +266,7 @@ class Table:
                 overflow.append(key)
 
         self.duplicates = duplicates
+        self.unique = unique
         self.overflow = overflow
         self.columns = sorted(columns, key=lambda k: DISPLAY_ORDER.get(k, 9999))
 
@@ -280,13 +281,15 @@ class Table:
                    for row in self.rows)
 
     def print_(self):
-        if self.duplicates:
+        if self.duplicates or self.unique:
+            lwidth = max(max(len(a) for a, _ in self.duplicates),
+                         max(len(k) for k in self.unique))
             print("Every device has these fields:")
-            lwidth = max(len(a) for a, _ in self.duplicates)
             for a, b in self.duplicates:
                 print("  {0:{lwidth}} = <{1}>".format(a, b, lwidth=lwidth))
+            for k in self.unique:
+                print("  {0:{lwidth}} = {1}".format(k, self.cols[k].unique_value, lwidth=lwidth))
             print()
-
 
         line = ' '.join(self.cols[col].formatted_cell_for(None) for col in self.columns)
         print('\033[1m' + line + '\033[0m')
