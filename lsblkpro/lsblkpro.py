@@ -221,9 +221,8 @@ CANDIDATE_DUPLICATES = (
 )
 
 class Column:
-    def __init__(self, attr, idx):
-        self.attr = attr
-        self.idx = idx
+    def __init__(self, key):
+        self.key = key
         self.width = len(self.header_cell)
         self.unique = True
         self.unique_value = None
@@ -239,27 +238,25 @@ class Column:
         self.width = max(self.width, len(cell))
 
     def __repr__(self):
-        return "<{}-{}: w={}>".format(self.attr, self.idx, self.width)
+        return "<{}: w={}>".format(self.key, self.width)
 
     @property
     def header_cell(self):
-        if self.idx is None:
-            return self.attr
-        else:
-            return self.idx
+        return self.key
 
     def cell_for(self, row): # xxx None |-> ''
-        if self.idx is None:
-            try:
-                v = getattr(row, self.attr)
-                return str(v)
-            except AttributeError:
-                pass
-
-            v = getattr(row.ent, self.attr)
-            return str(v)
+        lookups = (
+            getattr(row, self.key, None),
+            getattr(row.ent, self.key, None),
+            row.ent.lsblk.get(self.key, None),
+            row.ent.by.get(self.key, None),
+        )
+        matches = filter(None, lookups)
+        assert len(matches) <= 1, "table key '{}' not unique for {}".format(self.key, row)
+        if matches:
+            return str(matches[0])
         else:
-            return str(getattr(row.ent, self.attr)[self.idx])
+            return '<empty>'
 
 class Table:
     def __init__(self, rows):
