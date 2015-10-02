@@ -148,74 +148,6 @@ DUPLICATES = (
     ('partlabel', 'PARTLABEL'),
 )
 
-########
-
-class Column:
-    def __init__(self, key):
-        self.key = key
-        self.width = len(self.header_cell)
-        self.unique = True
-        self.unique_value = None
-
-    def update(self, row):
-        cell = self.cell_for(row)
-        if self.unique:
-            if self.unique_value is None:
-                self.unique_value = cell
-            else:
-                self.unique = (self.unique_value == cell)
-
-        self.width = max(self.width, len(cell))
-
-    @property
-    def header_cell(self):
-        return self.key
-
-    def cell_for(self, row): # xxx None |-> ''
-        if self.key == 'FSTYPE' and not row.show_fstype:
-            return ''
-
-        lookups = (
-            getattr(row, self.key, None),
-            getattr(row.ent, self.key, None),
-            row.ent.lsblk.get(self.key, None),
-            row.ent.by.get(self.key, None),
-        )
-        matches = tuple(filter(None, lookups))
-        assert len(matches) <= 1, "table key '{}' not unique for {}".format(self.key, row)
-        if matches:
-            return str(matches[0])
-        else:
-            return ''
-
-    def formatted_cell_for(self, row): # row=None means header
-        if row is None:
-            text = self.header_cell
-        else:
-            text = self.cell_for(row)
-
-        if self.key == 'MAJ:MIN':
-            text = pad_maj_min(text)
-
-        if '•' in text:
-            a, b = text.split('•')
-            sep = ' ' * (self.width - len(a) - len(b))
-            text = a + sep + b
-
-        fmt = FORMAT_OPTIONS.get(self.key)
-        if fmt in ('>', '<'):
-            fmt += str(self.width)
-        elif fmt is None:
-            fmt = '>' + str(self.width)
-
-        return "{0:{fmt}}".format(text, fmt=fmt)
-
-    class DefaultDict(collections.defaultdict):
-        def __missing__(self, v):
-            col = Column(v)
-            self[v] = col
-            return col
-
 class Table:
     def __init__(self, host, args):
         ents = Table.entity_order_for(host, args)
@@ -296,7 +228,6 @@ class Table:
 
         return ents, filter_log
 
-
     def are_duplicates(self, a, b):
         try:
             col_a = self.cols[a]
@@ -333,6 +264,72 @@ class Table:
         for row in self.rows:
             line = ' '.join(self.cols[col].formatted_cell_for(row) for col in self.columns)
             print(row.color + line)
+
+class Column:
+    def __init__(self, key):
+        self.key = key
+        self.width = len(self.header_cell)
+        self.unique = True
+        self.unique_value = None
+
+    def update(self, row):
+        cell = self.cell_for(row)
+        if self.unique:
+            if self.unique_value is None:
+                self.unique_value = cell
+            else:
+                self.unique = (self.unique_value == cell)
+
+        self.width = max(self.width, len(cell))
+
+    @property
+    def header_cell(self):
+        return self.key
+
+    def cell_for(self, row): # xxx None |-> ''
+        if self.key == 'FSTYPE' and not row.show_fstype:
+            return ''
+
+        lookups = (
+            getattr(row, self.key, None),
+            getattr(row.ent, self.key, None),
+            row.ent.lsblk.get(self.key, None),
+            row.ent.by.get(self.key, None),
+        )
+        matches = tuple(filter(None, lookups))
+        assert len(matches) <= 1, "table key '{}' not unique for {}".format(self.key, row)
+        if matches:
+            return str(matches[0])
+        else:
+            return ''
+
+    def formatted_cell_for(self, row): # row=None means header
+        if row is None:
+            text = self.header_cell
+        else:
+            text = self.cell_for(row)
+
+        if self.key == 'MAJ:MIN':
+            text = pad_maj_min(text)
+
+        if '•' in text:
+            a, b = text.split('•')
+            sep = ' ' * (self.width - len(a) - len(b))
+            text = a + sep + b
+
+        fmt = FORMAT_OPTIONS.get(self.key)
+        if fmt in ('>', '<'):
+            fmt += str(self.width)
+        elif fmt is None:
+            fmt = '>' + str(self.width)
+
+        return "{0:{fmt}}".format(text, fmt=fmt)
+
+    class DefaultDict(collections.defaultdict):
+        def __missing__(self, v):
+            col = Column(v)
+            self[v] = col
+            return col
 
 class Row:
     def __init__(self, ent):
@@ -377,7 +374,6 @@ class Row:
 
     #xxx
     #def show_BY-vdev-if-partition(self): False
-
 
     def _display_name(self, *, last):
         lsblk, by = self.ent.lsblk, self.ent.by
@@ -484,7 +480,6 @@ def main():
     if host.missing_from_lsblk:
         # xxx more prominent warning (color?)
         print("Present in sysfs but not in `lsblk`:\n  {}\n".format(', '.join(host.missing_from_lsblk)))
-
 
     table = Table(host, args)
     table.print_()
