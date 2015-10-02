@@ -41,7 +41,7 @@ def terminal_size():
                            struct.pack('HHHH', 0, 0, 0, 0)))
     return h, w
 
-def width_limit(args):
+def width_limit_fun(args):
     if args.all_columns:
         return None
     else:
@@ -74,7 +74,6 @@ ALWAYS_INTERESTING = {
 IMPORTANCE_ORDER = {key: ii for ii, key in enumerate([
     'display_name',
     'location',
-
     'name',
     'NAME',
     'KNAME',
@@ -168,9 +167,6 @@ class Column:
 
         self.width = max(self.width, len(cell))
 
-    def __repr__(self):
-        return "<{}: w={}>".format(self.key, self.width)
-
     @property
     def header_cell(self):
         return self.key
@@ -221,8 +217,10 @@ class Column:
             return col
 
 class Table:
-    def __init__(self, rows, width_limit=None, include=[], exclude=[]):
-        self.rows = list(rows)
+    def __init__(self, host, args):
+        ents = Table.entity_order_for(host, args)
+        ents, self.filter_log = Table.apply_filters(ents, args)
+        self.rows = list(Row.from_ents(ents))
         self.cols = Column.DefaultDict()
 
         for row in self.rows:
@@ -234,10 +232,10 @@ class Table:
         unique = {key for key, col in self.cols.items()
                   if col.unique and key not in ALWAYS_INTERESTING
                  } if len(self.rows) > 1 else {}
-        omit = set(a for a, b in duplicates) | unique | set(exclude) - set(include)
+        omit = set(a for a, b in duplicates) | unique | set(args.exclude) - set(args.include)
 
         def importance_order(key):
-            if key in include:
+            if key in args.include:
                 return -9999
             else:
                 return IMPORTANCE_ORDER.get(key, 9999)
@@ -245,6 +243,7 @@ class Table:
         importance = sorted((col for col in self.cols if col not in omit),
                             key=importance_order)
 
+        width_limit = width_limit_fun(args)
         remaining_width = width_limit
         # pack columns into allotted width (greedy)
         columns = []
@@ -261,6 +260,42 @@ class Table:
         self.unique = unique
         self.overflow = overflow
         self.columns = sorted(columns, key=lambda k: DISPLAY_ORDER.get(k, 9999))
+
+    # compute entities in row order (each device followed by its partitions)
+    @staticmethod
+    def entity_order_for(host, args):
+        for device in host.devices_sorted(args):
+            yield device
+            if args.only_devices:
+                continue
+            if (device.by.get('vdev') or device.zpath) and not args.all_devices:
+                continue
+            for part in device.partitions:
+                assert part.lsblk['PKNAME'] == device.name
+                yield part
+
+    def apply_filters(ents, args):
+        filter_log = []
+        # xxx allow relative by parsing sizes
+        for f in args.filters:
+            if '=~' in f:
+                lhs, rhs = f.split('=~', 1)
+                filter_log.append("{} matches regexp /{}/".format(lhs, rhs))
+                ents = filter(lambda ent: re.match(rhs, ent._sort_value(lhs), ents))
+            elif '=' in f:
+                lhs, rhs = f.split('=', 1)
+                filter_log.append("{} = {}".format(lhs, rhs))
+                ents = filter(lambda ent: ent._sort_value(lhs) == rhs, ents)
+            elif '!=' in f:
+                lhs, rhs = f.split('!=', 1)
+                filter_log.append("{} != {}".format(lhs, rhs))
+                ents = filter(lambda ent: ent._sort_value(lhs) != rhs, ents)
+            else:
+                filter_log.append("{} is set".format(f))
+                ents = filter(lambda ent: ent._sort_value(f), ents)
+
+        return ents, filter_log
+
 
     def are_duplicates(self, a, b):
         try:
@@ -286,6 +321,11 @@ class Table:
         if self.overflow:
             print("Overflowing labels:\n  {}\n".format(', '.join(sorted(self.overflow))))
 
+        if self.filter_log:
+            print("Showing only entries where:")
+            for f in self.filter_log:
+                print("  {}".format(f))
+            print()
 
         line = ' '.join(self.cols[col].formatted_cell_for(None) for col in self.columns)
         print('\033[1m' + line + '\033[0m')
@@ -298,8 +338,7 @@ class Row:
     def __init__(self, ent):
         self.ent = ent
         self.display_name = None
-        self.synthesized = ['NAME', 'zpath']
-
+        self.synthesized = ('NAME', 'zpath', 'MOUNTPOINT', 'TYPE', 'vdev')
         self.color = '' # xxx
 
     def __iter__(self):
@@ -320,6 +359,18 @@ class Row:
         except KeyError:
             return False
 
+    @staticmethod
+    def from_ents(ents):
+        ents = list(ents)
+        for ii, ent in enumerate(ents):
+            try:
+                last = isinstance(ents[ii+1], data.Device)
+            except IndexError:
+                last = True
+            row = Row(ent)
+            row.display_name = row._display_name(last=last)
+            yield row
+
     @property
     def show_fstype(self):
         return self.ent.lsblk['FSTYPE'] not in ('', 'linux_raid_member', 'zfs_member')
@@ -335,7 +386,7 @@ class Row:
         if lsblk['NAME'] != name:
             name += '={}'.format(lsblk['NAME'])
         vdev = ('•{}'.format(by['vdev']) if (by.get('vdev') and
-                                             isinstance(self.ent, data.Partition))
+                                             not isinstance(self.ent, data.Partition))
                                          else '')
         typ = ('•({})'.format(lsblk['TYPE']) if not (lsblk.get('TYPE')
                                                            in (None, 'disk', 'part', 'md')
@@ -354,17 +405,6 @@ class Row:
         holders = '[{}]'.format(', '.join(self.ent.holder_names)) if self.ent.holder_names else ''
         assert len(list(filter(None, (self.ent.zpath, mnt)))) <= 1
         return ' '.join(filter(None, (self.ent.zpath, mnt, holders)))
-
-    @staticmethod
-    def rows_for(host, row_ents):
-        for ii, ent in enumerate(row_ents):
-            try:
-                last = isinstance(row_ents[ii+1], data.Device)
-            except IndexError:
-                last = True
-            row = Row(ent)
-            row.display_name = row._display_name(last=last)
-            yield row
 
 # xxx
 def munge_highlights(rows, field):
@@ -441,61 +481,10 @@ def main():
             pickle.dump(host, f)
         sys.exit(0)
 
-    # compute rows (each device followed by its partitions)
-    def display_order_for():
-        for device in host.devices_sorted(args):
-            yield device
-            if args.only_devices:
-                continue
-            if (device.by.get('vdev') or device.zpath) and not args.all_devices:
-                continue
-            for part in device.partitions:
-                assert part.lsblk['PKNAME'] == device.name
-                yield part
-
-    def apply_filters(row_ents):
-        filter_log = []
-        # xxx allow relative by parsing sizes
-        for f in args.filters:
-            if '=~' in f:
-                lhs, rhs = f.split('=~', 1)
-                filter_log.append("{} matches regexp /{}/".format(lhs, rhs))
-                row_ents = filter(lambda ent: re.match(rhs, ent._sort_value(lhs), row_ents))
-            elif '=' in f:
-                lhs, rhs = f.split('=', 1)
-                filter_log.append("{} = {}".format(lhs, rhs))
-                row_ents = filter(lambda ent: ent._sort_value(lhs) == rhs, row_ents)
-            elif '!=' in f:
-                lhs, rhs = f.split('!=', 1)
-                filter_log.append("{} != {}".format(lhs, rhs))
-                row_ents = filter(lambda ent: ent._sort_value(lhs) != rhs, row_ents)
-            else:
-                filter_log.append("{} is set".format(f))
-                row_ents = filter(lambda ent: ent._sort_value(f), row_ents)
-
-        return list(row_ents), filter_log
-
-    row_ents, filter_log = apply_filters(display_order_for())
-
-    # munge
-    # xxx munge_highlights(rows, args.highlight)
-    #view = View(rows)
-    #view._figure_out_labels(args)
-
     if host.missing_from_lsblk:
+        # xxx more prominent warning (color?)
         print("Present in sysfs but not in `lsblk`:\n  {}\n".format(', '.join(host.missing_from_lsblk)))
 
-    rows = Row.rows_for(host, row_ents)
-    table = Table(rows, width_limit=width_limit(args), include=args.include, exclude=args.exclude)
+
+    table = Table(host, args)
     table.print_()
-
-    sys.exit(0)
-
-    # pre-print
-    if filter_log:
-        print("Showing only entries where:")
-        for f in filter_log:
-            print("  {}".format(f))
-        print()
-
-    view.print_table()
