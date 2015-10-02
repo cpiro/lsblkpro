@@ -149,6 +149,17 @@ def terminal_size():
                            struct.pack('HHHH', 0, 0, 0, 0)))
     return h, w
 
+def width_limit(args):
+    if args.all_columns:
+        return None
+    else:
+        try:
+            _, width = terminal_size()
+            return width - 1
+        # xxx if output is not a tty then be sure not to limit width
+        except Exception:
+            return None
+
 ########
 
 IMPORTANCE_ORDER = [
