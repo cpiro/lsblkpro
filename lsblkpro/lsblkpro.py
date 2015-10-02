@@ -280,106 +280,10 @@ class View:
         self.overflow = None
         self.missing_labels = None
 
-    def _figure_out_labels(self, args):
-        always_interesting = ALWAYS_INTERESTING.copy()
-        importance = IMPORTANCE.copy()
-
-        omit.update(args.exclude)
-        omit -= set(args.include)
-
-        every_device_has = []
-
-        for candidate, reference in DUPLICATES:
-            if all(row.ent._sort_value(candidate, '') ==
-                   row.ent._sort_value(reference, '') for row in self.rows):
-                every_device_has.append((candidate, '<{}>'.format(reference)))
-                omit.add(candidate)
-
-        width_label_pairs = []
-        overflow = []
-        running_width = 0
-        if args.all_columns:
-            width_limit = None
-        else:
-            try:
-                _, width_limit = terminal_size()
-                width_limit -= 1
-                # xxx if output is not a tty then be sure not to limit width
-            except Exception:
-                width_limit = None
-
-                ####
-                ####
-                ####
-
-        for label in args.include:
-            # xxx check that it's a valid label, warn otherwise
-            importance.remove(label)
-            always_interesting.add(label)
-        importance[2:1+len(args.include)] = args.include
-
-        for label in importance:
-            if label in omit:
-                continue
-
-            values_in_this_column = set(row.value_to_str(label) for row in self.rows)
-            if (label in always_interesting or
-                not (len(self.rows) == 1 or len(values_in_this_column) == 1)):
-                width = self.width_for_column(label)
-
-                if width_limit is not None and running_width + width > width_limit:
-                    overflow.append(label)
-                else:
-                    running_width += width + 1
-                    width_label_pairs.append((width, label))
-            else:
-                val = values_in_this_column.pop()
-                if val:
-                    every_device_has.append((label, val))
-
-        # labels in `rows` not in importance or omit
-        all_labels = set()
-        for row in self.rows:  # victoresque
-            all_labels |= set(row)
-
-        missing_labels = all_labels - set(importance) - omit
-
-        # print
-        def column_order(elt):
-            w, l = elt
-            if l in SORT_ORDER:
-                return SORT_ORDER[l]
-            else:
-                return w + 1000 # shorter ones first
-
-        self.width_label_pairs = sorted(width_label_pairs, key=column_order)
-
-        self.every_device_has = every_device_has
-        self.omit = omit
-        self.overflow = overflow
-        self.missing_labels = missing_labels
-
     def print_table(self):
         self._print_row({l: l for w, l in self.width_label_pairs}, header=True)
         for row in self.rows:
             self._print_row(row, header=False)
-
-    def width_for_column(self, label):
-        return max(
-            len(View.label_to_str(label, label)),
-            max(len(row.value_to_str(label)) for row in self.rows)
-        )
-
-    @staticmethod
-    def label_to_str(label, width=None):
-        if label == 'displayname':
-            return 'DEVICE'
-        elif label == 'location':
-            return ''
-        elif label.startswith('by-'):
-            return label[3:]
-        else:
-            return label
 
     def _print_row(self, row, header=False):
         def get_format(l, w):
