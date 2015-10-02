@@ -156,7 +156,10 @@ class Column:
         self.width = len(self.header_cell)
 
     def update_width(self, row):
-        self.width = max(self.width, self.cell_for(row))
+        self.width = max(self.width, len(self.cell_for(row)))
+
+    def __repr__(self):
+        return "<{}-{}: w={}>".format(self.attr, self.idx, self.width)
 
     @property
     def header_cell(self):
