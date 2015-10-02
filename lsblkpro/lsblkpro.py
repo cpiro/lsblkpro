@@ -19,6 +19,7 @@ import os
 import sys
 import re
 import argparse
+import collections
 
 import struct
 import fcntl
@@ -148,9 +149,47 @@ def terminal_size():
                            struct.pack('HHHH', 0, 0, 0, 0)))
     return h, w
 
+class Column:
+    def __init__(self, attr, idx):
+        self.attr = attr
+        self.idx = idx
+        self.width = len(self.header_cell)
+
+    def update_width(self, row):
+        self.width = max(self.width, self.cell_for(row))
+
+    @property
+    def header_cell(self):
+        if self.idx is None:
+            return self.attr
+        else:
+            return self.idx
+
+    def cell_for(self, row):
+        if self.idx is None:
+            return str(getattr(row.ent, self.attr))
+        else:
+            return str(getattr(row.ent, self.attr)[self.idx])
+
 class Table:
     def __init__(self, rows):
         self.rows = list(rows)
+        self.cols = {}  # (attr, idx|None) -> Column
+
+        for row in self.rows:
+            for attr in ('lsblk', 'by'):
+                for idx in getattr(row.ent, attr):
+                    col = self.cols.get((attr, idx))
+                    if col is None:
+                        col = Column(attr, idx)
+                        self.cols[(attr, idx)] = col
+                    col.update_width(row)
+
+        print(self.cols.values())
+
+    def print_(self):
+        print('----\n hai \n----\n')
+
 
 class View:
     def __init__(self, rows):
@@ -487,10 +526,15 @@ def main():
     row_ents, filter_log = apply_filters(display_order_for())
 
     # munge
-    rows = Row.rows_for(host, row_ents)
     # xxx munge_highlights(rows, args.highlight)
-    view = View(rows)
-    view._figure_out_labels(args)
+    #view = View(rows)
+    #view._figure_out_labels(args)
+
+    rows = Row.rows_for(host, row_ents)
+    table = Table(rows)
+    table.print_()
+
+    sys.exit(0)
 
     # pre-print
     if filter_log:
