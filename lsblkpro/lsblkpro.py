@@ -20,6 +20,7 @@ import sys
 import re
 import argparse
 import collections
+import itertools
 
 import struct
 import fcntl
@@ -33,6 +34,23 @@ from . import data
 def pad_maj_min(text):
     v = ' ' * (3-text.index(':')) + text
     return v + ' ' * (7-len(v))
+
+def terminal_size():
+    h, w, hp, wp = struct.unpack('HHHH',
+                       fcntl.ioctl(0, termios.TIOCGWINSZ,
+                           struct.pack('HHHH', 0, 0, 0, 0)))
+    return h, w
+
+def width_limit(args):
+    if args.all_columns:
+        return None
+    else:
+        try:
+            _, width = terminal_size()
+            return width - 1
+        # xxx if output is not a tty then be sure not to limit width
+        except Exception:
+            return None
 
 FORMAT_OPTIONS = {
     'display_name': '<',
@@ -49,13 +67,8 @@ FORMAT_OPTIONS = {
     'MOUNTPOINT': '<',
 }
 
-ALWAYS_INTERESTING = set('SIZE')
-
-
-OMIT = {
-    'NAME', 'PKNAME', 'name', 'zpath', 'MOUNTPOINT', 'TYPE', 'vdev', 'holders', 'partitions', # used by munge
-    'major', 'minor',  'size', # xxx
-    'MODEL', # boring
+ALWAYS_INTERESTING = {
+    'SIZE'
 }
 
 IMPORTANCE_ORDER = {key: ii for ii, key in enumerate([
@@ -113,7 +126,6 @@ DISPLAY_ORDER = {key: ii for ii, key in enumerate([
     'display_name',
     'vdev',
     'location',
-
     'NAME',
     'KNAME',
     'zpath',
@@ -128,23 +140,7 @@ DISPLAY_ORDER = {key: ii for ii, key in enumerate([
     'MODE',
     'TYPE',
     'ROTA',
-    # 'ALIGNMENT',
-    # 'MIN-IO',
-    # 'OPT-IO',
-    # 'PHY-SEC',
-    # 'LOG-SEC',
-    # 'RO',
-    # 'RM',
-    # 'DISC-ALN', 'DISC-GRAN', 'DISC-MAX', 'DISC-ZERO',
-    # 'MODEL',
-    # 'STATE',
-    # 'LABEL',
-    # 'FSTYPE',
-    # 'VENDOR',
-    # 'UUID',
-    # 'WWN',
-    # 'SERIAL',
-    ])}
+])}
 
 DUPLICATES = (
     ('KNAME', 'NAME'),
@@ -152,25 +148,6 @@ DUPLICATES = (
     ('uuid', 'UUID'),
     ('partlabel', 'PARTLABEL'),
 )
-
-
-
-def terminal_size():
-    h, w, hp, wp = struct.unpack('HHHH',
-                       fcntl.ioctl(0, termios.TIOCGWINSZ,
-                           struct.pack('HHHH', 0, 0, 0, 0)))
-    return h, w
-
-def width_limit(args):
-    if args.all_columns:
-        return None
-    else:
-        try:
-            _, width = terminal_size()
-            return width - 1
-        # xxx if output is not a tty then be sure not to limit width
-        except Exception:
-            return None
 
 ########
 
@@ -257,7 +234,7 @@ class Table:
         unique = {key for key, col in self.cols.items()
                   if col.unique and key not in ALWAYS_INTERESTING
                  } if len(self.rows) > 1 else {}
-        omit = OMIT | set(a for a, b in duplicates) | unique | set(exclude) - set(include)
+        omit = set(a for a, b in duplicates) | unique | set(exclude) - set(include)
 
         def importance_order(key):
             if key in include:
@@ -321,13 +298,17 @@ class Row:
     def __init__(self, ent):
         self.ent = ent
         self.display_name = None
+        self.synthesized = ['NAME', 'zpath']
 
         self.color = '' # xxx
 
     def __iter__(self):
-        yield from ('display_name', 'location', 'zpath')
-        yield from self.ent.lsblk.keys()
-        yield from self.ent.by.keys()
+        chain = itertools.chain(
+            ('display_name', 'location', 'zpath'),
+            self.ent.lsblk.keys(),
+            self.ent.by.keys(),
+        )
+        yield from (key for key in chain if key not in self.synthesized)
 
     def __getitem__(self, label):
         return self.ent._sort_value(label)
