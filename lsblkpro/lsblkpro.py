@@ -159,23 +159,30 @@ class Table:
             for key in row:
                 col = cols[key]
                 col.update(row)
-        self.cols = dict(cols)
+        cols = dict(cols)  # un-defaultdict
 
-        self.duplicates = {(a, b) for a, b in DUPLICATES if self.are_duplicates(a, b)}
+        def are_duplicates(a, b):
+            return (a in cols and b in cols and
+                    all(cols[a].cell_for(row) == cols[b].cell_for(row)
+                        for row in self.rows))
+        self.duplicates = {(a, b) for a, b in DUPLICATES if are_duplicates(a, b)}
 
-        self.unique = {key for key, col in self.cols.items()
+        self.unique = {(key, col.unique_value) for key, col in cols.items()
                        if col.unique and key not in ALWAYS_INTERESTING
                       } if len(self.rows) > 1 else {}
 
-        omit = (set(a for a, b in self.duplicates) | set(Row.SYNTHESIZED)
-                | self.unique | set(args.exclude) - set(args.include))
+        omit = (set(a for a, b in self.duplicates)
+                | set(k for k, v in self.unique)
+                | set(Row.SYNTHESIZED)
+                | set(args.exclude)
+                - set(args.include))
 
         def importance_order(key):
             if key in args.include:
                 return (-9999, key)
             else:
                 return (IMPORTANCE_ORDER.get(key, 9999), key)
-        importance = sorted((col for col in self.cols if col not in omit),
+        importance = sorted((col for col in cols if col not in omit),
                             key=importance_order)
 
         width_limit = width_limit_fun(args)
@@ -184,14 +191,14 @@ class Table:
         columns = []
         self.overflow = []
         for key in importance:
-            col = self.cols[key]
+            col = cols[key]
             if width_limit is None or col.width <= remaining_width:
                 columns.append(key)
                 remaining_width -= col.width + 1
             else:
                 self.overflow.append(key)
 
-        self.columns = sorted(columns, key=lambda k: DISPLAY_ORDER.get(k, 9999))
+        self.columns = [cols[k] for k in sorted(columns, key=lambda k: DISPLAY_ORDER.get(k, 9999))]
 
     # compute entities in row order (each device followed by its partitions)
     @staticmethod
@@ -228,27 +235,17 @@ class Table:
 
         return ents, filter_log
 
-    def are_duplicates(self, a, b):
-        try:
-            col_a = self.cols[a]
-            col_b = self.cols[b]
-        except KeyError:
-            return False
-
-        return all(col_a.cell_for(row) == col_b.cell_for(row)
-                   for row in self.rows)
-
     def print_(self):
         if self.duplicates or self.unique:
             lwidth = max(itertools.chain(
-                            (len(a) for a, _ in self.duplicates),
-                            (len(k) for k in self.unique),
+                            (len(a) for a, b in self.duplicates),
+                            (len(k) for k, v in self.unique),
             ))
             print("Every device has these fields:")
             for a, b in sorted(sorted(self.duplicates), key=lambda k: DISPLAY_ORDER.get(k, 9999)):
                 print("  {0:{lwidth}} = <{1}>".format(a, b, lwidth=lwidth))
-            for k in sorted(sorted(self.unique), key=lambda k: DISPLAY_ORDER.get(k, 9999)):
-                print("  {0:{lwidth}} == {1}".format(k, self.cols[k].unique_value, lwidth=lwidth))
+            for k, v in sorted(sorted(self.unique), key=lambda k: DISPLAY_ORDER.get(k, 9999)):
+                print("  {0:{lwidth}} = {1}".format(k, v, lwidth=lwidth))
             print()
 
         if self.overflow:
@@ -261,11 +258,12 @@ class Table:
                 print("  {}".format(f))
             print()
 
-        line = ' '.join(self.cols[col].formatted_cell_for(None) for col in self.columns)
+        # header
+        line = ' '.join(col.formatted_cell_for(None) for col in self.columns)
         print('\033[1m' + line + '\033[0m')
 
         for row in self.rows:
-            line = ' '.join(self.cols[col].formatted_cell_for(row) for col in self.columns)
+            line = ' '.join(col.formatted_cell_for(row) for col in self.columns)
             print(row.color + line)
 
 class Column:
