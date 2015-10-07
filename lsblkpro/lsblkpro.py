@@ -43,14 +43,14 @@ def terminal_size():
 
 def width_limit_fun(args):
     if args.all_columns:
-        return None
+        return 9999
     else:
         try:
             _, width = terminal_size()
             return width - 1
         # xxx if output is not a tty then be sure not to limit width
         except Exception:
-            return None
+            return 9999
 
 FORMAT_OPTIONS = {
     'display_name': '<',
@@ -159,12 +159,15 @@ class Table:
             for key in row:
                 col = self.cols[key]
                 col.update(row)
+        self.cols = dict(self.cols)
 
         duplicates = {(a, b) for a, b in DUPLICATES if self.are_duplicates(a, b)}
+
         unique = {key for key, col in self.cols.items()
                   if col.unique and key not in ALWAYS_INTERESTING
                  } if len(self.rows) > 1 else {}
-        omit = set(a for a, b in duplicates) | unique | set(args.exclude) - set(args.include)
+        omit = (set(a for a, b in duplicates) | set(Row.SYNTHESIZED)
+                | unique | set(args.exclude) - set(args.include))
 
         def importance_order(key):
             if key in args.include:
@@ -240,8 +243,10 @@ class Table:
 
     def print_(self):
         if self.duplicates or self.unique:
-            lwidth = max(max(len(a) for a, _ in self.duplicates),
-                         max(len(k) for k in self.unique))
+            lwidth = max(itertools.chain(
+                            (len(a) for a, _ in self.duplicates),
+                            (len(k) for k in self.unique),
+            ))
             print("Every device has these fields:")
             for a, b in self.duplicates:
                 print("  {0:{lwidth}} = <{1}>".format(a, b, lwidth=lwidth))
@@ -269,12 +274,12 @@ class Column:
     def __init__(self, key):
         self.key = key
         self.width = len(self.header_cell)
-        self.unique = True
+        self.unique = None
         self.unique_value = None
 
     def update(self, row):
         cell = self.cell_for(row)
-        if self.unique:
+        if self.unique is not False:
             if self.unique_value is None:
                 self.unique_value = cell
             else:
@@ -332,19 +337,17 @@ class Column:
             return col
 
 class Row:
+    SYNTHESIZED = ('NAME', 'PKNAME', 'zpath', 'MOUNTPOINT', 'TYPE', 'vdev')
+
     def __init__(self, ent):
         self.ent = ent
         self.display_name = None
-        self.synthesized = ('NAME', 'zpath', 'MOUNTPOINT', 'TYPE', 'vdev')
         self.color = '' # xxx
 
     def __iter__(self):
-        chain = itertools.chain(
-            ('display_name', 'location', 'zpath'),
-            self.ent.lsblk.keys(),
-            self.ent.by.keys(),
-        )
-        yield from (key for key in chain if key not in self.synthesized)
+        yield from ('display_name', 'location', 'zpath')
+        yield from self.ent.lsblk.keys()
+        yield from self.ent.by.keys()
 
     def __getitem__(self, label):
         return self.ent._sort_value(label)
