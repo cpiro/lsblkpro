@@ -153,28 +153,28 @@ class Table:
         ents = Table.entity_order_for(host, args)
         ents, self.filter_log = Table.apply_filters(ents, args)
         self.rows = list(Row.from_ents(ents))
-        self.cols = Column.DefaultDict()
 
+        cols = Column.DefaultDict()
         for row in self.rows:
             for key in row:
-                col = self.cols[key]
+                col = cols[key]
                 col.update(row)
-        self.cols = dict(self.cols)
+        self.cols = dict(cols)
 
-        duplicates = {(a, b) for a, b in DUPLICATES if self.are_duplicates(a, b)}
+        self.duplicates = {(a, b) for a, b in DUPLICATES if self.are_duplicates(a, b)}
 
-        unique = {key for key, col in self.cols.items()
-                  if col.unique and key not in ALWAYS_INTERESTING
-                 } if len(self.rows) > 1 else {}
-        omit = (set(a for a, b in duplicates) | set(Row.SYNTHESIZED)
-                | unique | set(args.exclude) - set(args.include))
+        self.unique = {key for key, col in self.cols.items()
+                       if col.unique and key not in ALWAYS_INTERESTING
+                      } if len(self.rows) > 1 else {}
+
+        omit = (set(a for a, b in self.duplicates) | set(Row.SYNTHESIZED)
+                | self.unique | set(args.exclude) - set(args.include))
 
         def importance_order(key):
             if key in args.include:
-                return -9999
+                return (-9999, key)
             else:
-                return IMPORTANCE_ORDER.get(key, 9999)
-
+                return (IMPORTANCE_ORDER.get(key, 9999), key)
         importance = sorted((col for col in self.cols if col not in omit),
                             key=importance_order)
 
@@ -182,18 +182,15 @@ class Table:
         remaining_width = width_limit
         # pack columns into allotted width (greedy)
         columns = []
-        overflow = []
+        self.overflow = []
         for key in importance:
             col = self.cols[key]
             if width_limit is None or col.width <= remaining_width:
                 columns.append(key)
                 remaining_width -= col.width + 1
             else:
-                overflow.append(key)
+                self.overflow.append(key)
 
-        self.duplicates = duplicates
-        self.unique = unique
-        self.overflow = overflow
         self.columns = sorted(columns, key=lambda k: DISPLAY_ORDER.get(k, 9999))
 
     # compute entities in row order (each device followed by its partitions)
@@ -248,14 +245,15 @@ class Table:
                             (len(k) for k in self.unique),
             ))
             print("Every device has these fields:")
-            for a, b in self.duplicates:
+            for a, b in sorted(sorted(self.duplicates), key=lambda k: DISPLAY_ORDER.get(k, 9999)):
                 print("  {0:{lwidth}} = <{1}>".format(a, b, lwidth=lwidth))
-            for k in self.unique:
-                print("  {0:{lwidth}} = {1}".format(k, self.cols[k].unique_value, lwidth=lwidth))
+            for k in sorted(sorted(self.unique), key=lambda k: DISPLAY_ORDER.get(k, 9999)):
+                print("  {0:{lwidth}} == {1}".format(k, self.cols[k].unique_value, lwidth=lwidth))
             print()
 
         if self.overflow:
-            print("Overflowing labels:\n  {}\n".format(', '.join(sorted(self.overflow))))
+            print("Overflowing labels:\n  {}\n".format(', '.join(
+                sorted(self.overflow, key=lambda k: DISPLAY_ORDER.get(k, 9999)))))
 
         if self.filter_log:
             print("Showing only entries where:")
