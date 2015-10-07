@@ -41,17 +41,6 @@ def terminal_size():
                            struct.pack('HHHH', 0, 0, 0, 0)))
     return h, w
 
-def width_limit_fun(args):
-    if args.all_columns:
-        return 9999
-    else:
-        try:
-            _, width = terminal_size()
-            return width - 1
-        # xxx if output is not a tty then be sure not to limit width
-        except Exception:
-            return 9999
-
 FORMAT_OPTIONS = {
     'display_name': '<',
     'location': '<',
@@ -185,14 +174,13 @@ class Table:
         importance = sorted((col for col in cols if col not in omit),
                             key=importance_order)
 
-        width_limit = width_limit_fun(args)
-        remaining_width = width_limit
+        remaining_width = args.width_limit
         # pack columns into allotted width (greedy)
         columns = []
         self.overflow = []
         for key in importance:
             col = cols[key]
-            if width_limit is None or col.width <= remaining_width:
+            if col.width <= remaining_width:
                 columns.append(key)
                 remaining_width -= col.width + 1
             else:
@@ -460,6 +448,16 @@ def main():
         BOX_MID, BOX_END = ' ├─ ', ' └─ '
     else:
         BOX_MID, BOX_END = ' |- ', ' `- '
+
+    if args.all_columns:
+        args.width_limit = 9999
+    else:
+        try:
+            _, width = terminal_size()
+            args.width_limit = width - 1
+        # xxx if output is not a tty then be sure not to limit width
+        except Exception:
+            args.width_limit = 9999
 
     # data
     if args.load_data:
