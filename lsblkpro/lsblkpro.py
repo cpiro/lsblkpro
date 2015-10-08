@@ -143,7 +143,7 @@ class Table:
     def __init__(self, host, args):
         ents = Table.entity_order_for(host, args)
         ents, self.filter_log = Table.apply_filters(ents, args)
-        self.rows = list(Row.from_ents(ents))
+        self.rows = [Row(ent) for ent in ents]
 
         class DefaultDict(collections.defaultdict):
             def __missing__(self, k):
@@ -254,12 +254,13 @@ class Table:
             print()
 
         # header
-        line = ' '.join(col.formatted_cell_for(None) for col in self.columns)
+        line = ' '.join(col.formatted_cell_for(None, last=False) for col in self.columns)
         print('\033[1m' + line + '\033[0m')
 
         # rows
-        for row in self.rows:
-            line = ' '.join(col.formatted_cell_for(row) for col in self.columns)
+        for ii, row in enumerate(self.rows):
+            last = ii+1 == len(self.rows) or self.rows[ii+1].indent == False
+            line = ' '.join(col.formatted_cell_for(row, last=last) for col in self.columns)
             print(line)
 
 class Column:
@@ -276,8 +277,8 @@ class Column:
                 self.unique_value = cell
             else:
                 self.unique = (self.unique_value == cell)
-
-        self.width = max(self.width, len(cell))
+        cell_len = len(cell) + (len(BOX_END) if row.indent else 0)
+        self.width = max(self.width, cell_len)
 
     @property
     def header_cell(self):
@@ -300,11 +301,14 @@ class Column:
         else:
             return ''
 
-    def formatted_cell_for(self, row): # row=None means header
+    def formatted_cell_for(self, row, *, last): # row=None means header
         if row is None:
             text = self.header_cell
         else:
             text = self.cell_for(row)
+
+        if self.key == 'display_name' and row and row.indent:
+            text = (BOX_END if last else BOX_MID) + text
 
         if self.key == 'MAJ:MIN':
             text = pad_maj_min(text)
@@ -327,7 +331,6 @@ class Row:
 
     def __init__(self, ent):
         self.ent = ent
-        self.display_name = None
 
     def __iter__(self):
         yield from ('display_name', 'location', 'zpath')
@@ -344,18 +347,6 @@ class Row:
         except KeyError:
             return False
 
-    @staticmethod
-    def from_ents(ents):
-        ents = list(ents)
-        for ii, ent in enumerate(ents):
-            try:
-                last = isinstance(ents[ii+1], data.Device)
-            except IndexError:
-                last = True
-            row = Row(ent)
-            row.display_name = row._display_name(last=last)
-            yield row
-
     @property
     def show_fstype(self):
         return self.ent.lsblk['FSTYPE'] not in ('', 'linux_raid_member', 'zfs_member')
@@ -363,7 +354,12 @@ class Row:
     #xxx
     #def show_BY-vdev-if-partition(self): False
 
-    def _display_name(self, *, last):
+    @property
+    def indent(self):
+        return isinstance(self.ent, data.Partition)
+
+    @property
+    def display_name(self):
         lsblk, by = self.ent.lsblk, self.ent.by
 
         name = lsblk['KNAME']
@@ -377,11 +373,7 @@ class Row:
                                                          or (lsblk.get('TYPE') == 'loop'
                                                              and self.ent.name.startswith('loop')))
                                            else '')
-
-        if isinstance(self.ent, data.Partition):
-            return (BOX_END if last else BOX_MID) + name + vdev + typ
-        else:
-            return name + vdev + typ
+        return name + vdev + typ
 
     @property
     def location(self):
