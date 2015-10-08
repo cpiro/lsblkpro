@@ -31,6 +31,8 @@ pp = pprint.pprint
 
 from . import data
 
+INF = float('inf')
+
 def pad_maj_min(text):
     v = ' ' * (3-text.index(':')) + text
     return v + ' ' * (7-len(v))
@@ -168,9 +170,9 @@ class Table:
 
         def importance_order(key):
             if key in args.include:
-                return (-9999, key)
+                return (-INF, key)
             else:
-                return (IMPORTANCE_ORDER.get(key, 9999), key)
+                return (IMPORTANCE_ORDER.get(key, INF), key)
         importance = sorted((col for col in cols if col not in omit),
                             key=importance_order)
 
@@ -186,7 +188,7 @@ class Table:
             else:
                 self.overflow.append(key)
 
-        self.columns = [cols[k] for k in sorted(columns, key=lambda k: DISPLAY_ORDER.get(k, 9999))]
+        self.columns = [cols[k] for k in sorted(columns, key=lambda k: DISPLAY_ORDER.get(k, INF))]
 
     # compute entities in row order (each device followed by its partitions)
     @staticmethod
@@ -230,15 +232,15 @@ class Table:
                             (len(k) for k, v in self.unique),
             ))
             print("Every device has these fields:")
-            for a, b in sorted(sorted(self.duplicates), key=lambda k: DISPLAY_ORDER.get(k, 9999)):
+            for a, b in sorted(sorted(self.duplicates), key=lambda k: DISPLAY_ORDER.get(k, INF)):
                 print("  {0:{lwidth}} = <{1}>".format(a, b, lwidth=lwidth))
-            for k, v in sorted(sorted(self.unique), key=lambda k: DISPLAY_ORDER.get(k, 9999)):
+            for k, v in sorted(sorted(self.unique), key=lambda k: DISPLAY_ORDER.get(k, INF)):
                 print("  {0:{lwidth}} = {1}".format(k, v, lwidth=lwidth))
             print()
 
         if self.overflow:
             print("Overflowing labels:\n  {}\n".format(', '.join(
-                sorted(self.overflow, key=lambda k: DISPLAY_ORDER.get(k, 9999)))))
+                sorted(self.overflow, key=lambda k: DISPLAY_ORDER.get(k, INF)))))
 
         if self.filter_log:
             print("Showing only entries where:")
@@ -450,14 +452,14 @@ def main():
         BOX_MID, BOX_END = ' |- ', ' `- '
 
     if args.all_columns:
-        args.width_limit = 9999
+        args.width_limit = INF
     else:
         try:
             _, width = terminal_size()
             args.width_limit = width - 1
         # xxx if output is not a tty then be sure not to limit width
         except Exception:
-            args.width_limit = 9999
+            args.width_limit = INF
 
     # data
     if args.load_data:
