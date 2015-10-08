@@ -145,7 +145,12 @@ class Table:
         ents, self.filter_log = Table.apply_filters(ents, args)
         self.rows = list(Row.from_ents(ents))
 
-        cols = Column.DefaultDict()
+        class DefaultDict(collections.defaultdict):
+            def __missing__(self, k):
+                col = Column(k)
+                self[k] = col
+                return col
+        cols = DefaultDict()
         for row in self.rows:
             for key in row:
                 col = cols[key]
@@ -173,8 +178,7 @@ class Table:
                 return (-INF, key)
             else:
                 return (IMPORTANCE_ORDER.get(key, INF), key)
-        importance = sorted((col for col in cols if col not in omit),
-                            key=importance_order)
+        importance = sorted((col for col in cols if col not in omit), key=importance_order)
 
         remaining_width = args.width_limit
         # pack columns into allotted width (greedy)
@@ -190,9 +194,9 @@ class Table:
 
         self.columns = [cols[k] for k in sorted(columns, key=lambda k: DISPLAY_ORDER.get(k, INF))]
 
-    # compute entities in row order (each device followed by its partitions)
     @staticmethod
     def entity_order_for(host, args):
+        """compute entities in row order (each device followed by its partitions)"""
         for device in host.devices_sorted(args):
             yield device
             if args.only_devices:
@@ -203,6 +207,7 @@ class Table:
                 assert part.lsblk['PKNAME'] == device.name
                 yield part
 
+    @staticmethod
     def apply_filters(ents, args):
         filter_log = []
         # xxx allow relative by parsing sizes
@@ -252,9 +257,10 @@ class Table:
         line = ' '.join(col.formatted_cell_for(None) for col in self.columns)
         print('\033[1m' + line + '\033[0m')
 
+        # rows
         for row in self.rows:
             line = ' '.join(col.formatted_cell_for(row) for col in self.columns)
-            print(row.color + line)
+            print(line)
 
 class Column:
     def __init__(self, key):
@@ -316,19 +322,12 @@ class Column:
 
         return "{0:{fmt}}".format(text, fmt=fmt)
 
-    class DefaultDict(collections.defaultdict):
-        def __missing__(self, v):
-            col = Column(v)
-            self[v] = col
-            return col
-
 class Row:
     SYNTHESIZED = ('NAME', 'PKNAME', 'zpath', 'MOUNTPOINT', 'TYPE', 'vdev')
 
     def __init__(self, ent):
         self.ent = ent
         self.display_name = None
-        self.color = '' # xxx
 
     def __iter__(self):
         yield from ('display_name', 'location', 'zpath')
@@ -391,24 +390,6 @@ class Row:
         assert len(list(filter(None, (self.ent.zpath, mnt)))) <= 1
         return ' '.join(filter(None, (self.ent.zpath, mnt, holders)))
 
-# xxx
-def munge_highlights(rows, field):
-    if field is None:
-        return
-    # i'm colorblind gimme a break
-    color_list = ['0', '31', '32', '34', '41', '42', '44', '45', '30;46', '30;47']
-    color_table = {}  # value => color
-    color = None
-    for row in rows:
-        if row[field] not in color_table:
-            try:
-                color = color_list.pop(0)
-                color_table[row[field]] = "\033[{}m".format(color)
-            except IndexError:
-                print("fatal: not enough colors to highlight by '{}'".format(field))
-                sys.exit(0)
-        row.color = color_table[row[field]]
-
 def main():
     # argparse
     parser = argparse.ArgumentParser()
@@ -424,8 +405,6 @@ def main():
                         help="sort devices by field(s); implies -i")
     parser.add_argument("-w", "--where", action='append', dest='filters', default=[],
                         help="filters e.g. NAME=sdc, vdev=a4")
-    parser.add_argument("-g", "--highlight",
-                        help="highlight entries by a field")
     parser.add_argument("-a", "--all-devices", action='store_true',
                         help="include ram* and loop* devices, and include partitions of zpool drives")
     parser.add_argument("-A", "--all-columns", action='store_true',
