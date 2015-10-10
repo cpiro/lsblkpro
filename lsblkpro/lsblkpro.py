@@ -277,7 +277,7 @@ class Column:
                 self.unique_value = cell
             else:
                 self.unique = (self.unique_value == cell)
-        cell_len = len(cell) + (len(BOX_END) if row.indent else 0)
+        cell_len = len(cell) + (len(BOX_END) if row.indent and self.key == 'display_name' else 0)
         self.width = max(self.width, cell_len)
 
     @property
