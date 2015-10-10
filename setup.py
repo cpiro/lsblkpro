@@ -4,6 +4,9 @@ setup(
     name = 'lsblkpro',
     version = '0',
     packages = find_packages(),
+    install_requires = [
+        'bytesize>=0',
+    ],
     entry_points = {
         'console_scripts': [
             'lsblkpro = lsblkpro.lsblkpro:main',

@@ -56,7 +56,7 @@ class Device(Entity):
             elif entry == 'dev':
                 dev.major, dev.minor = parse_maj_min(read_sysfs(path, entry))
             elif entry == 'size':
-                dev.size = int(read_sysfs(path, entry))
+                dev.bytes = int(read_sysfs(path, entry))
 
         dev.partitions = [Partition.from_sysfs(part_name, dev)
                           for part_name in partition_names]

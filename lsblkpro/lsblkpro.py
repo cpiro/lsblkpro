@@ -2,7 +2,7 @@
 
 # TODO attach time
 # TODO package desc should include /sys/block
-# TODO metric and binary sizes
+# TODO metric and binary sizes. use `lsblk -b` to get size in bytes
 # TODO s.m.a.r.t. support (temp?)
 # TODO optionally trunc [...] long cells when most of column is short
 # TODO -A restarts with `less -S`
@@ -30,6 +30,8 @@ import pprint
 pp = pprint.pprint
 
 from . import data
+
+import bytesize
 
 INF = float('inf')
 
@@ -331,9 +333,10 @@ class Row:
 
     def __init__(self, ent):
         self.ent = ent
+        self.short_formatter = bytesize.short_formatter()
 
     def __iter__(self):
-        yield from ('display_name', 'location', 'zpath')
+        yield from ('display_name', 'location', 'zpath', 'size')
         yield from self.ent.lsblk.keys()
         yield from self.ent.by.keys()
 
@@ -346,6 +349,10 @@ class Row:
             return True
         except KeyError:
             return False
+
+    @property
+    def size(self):
+        return self.short_formatter(self.ent.bytes * 512)
 
     @property
     def show_fstype(self):
