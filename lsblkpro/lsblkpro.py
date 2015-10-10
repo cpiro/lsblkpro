@@ -286,7 +286,10 @@ class Column:
 
     @property
     def header_cell(self):
-        return self.key
+        if self.key == 'display_name':
+            return 'NAME'  # trick!
+        else:
+            return self.key
 
     def cell_for(self, row): # xxx None |-> ''
         if self.key == 'FSTYPE' and not row.show_fstype:
