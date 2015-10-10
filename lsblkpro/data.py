@@ -39,7 +39,6 @@ class Device(Entity):
     def __init__(self, name):
         super().__init__(name)
         self.partitions = None
-        self.size = None
         self.major = None
         self.minor = None
 
@@ -55,8 +54,6 @@ class Device(Entity):
                 dev.holder_names = os.listdir(os.path.join('/sys', 'block', device_name, 'holders'))
             elif entry == 'dev':
                 dev.major, dev.minor = parse_maj_min(read_sysfs(path, entry))
-            elif entry == 'size':
-                dev.bytes = int(read_sysfs(path, entry))
 
         dev.partitions = [Partition.from_sysfs(part_name, dev)
                           for part_name in partition_names]
@@ -193,7 +190,7 @@ class Host:
         cmd = ['lsblk']
         if args.all_devices:
             cmd.append('--all')
-        cmd.extend(['-P', '-O'])
+        cmd.extend(['-P', '-O', '-b'])
         out = subprocess.check_output(cmd)
         results = []
         for l in out.decode(CLI_UTILS_ENCODING).splitlines():

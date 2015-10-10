@@ -58,10 +58,11 @@ FORMAT_OPTIONS = {
     'zpool': '>',
     'vdev': '>',
     'MOUNTPOINT': '<',
+    'size': '>',
 }
 
 ALWAYS_INTERESTING = {
-    'SIZE'
+    'size'
 }
 
 IMPORTANCE_ORDER = {key: ii for ii, key in enumerate([
@@ -123,6 +124,7 @@ DISPLAY_ORDER = {key: ii for ii, key in enumerate([
     'zpath',
     'MOUNTPOINT',
     'FSTYPE',
+    'size',
     'SIZE',
     'TRAN',
     'HCTL',
@@ -329,11 +331,14 @@ class Column:
         return "{0:{fmt}}".format(text, fmt=fmt)
 
 class Row:
-    SYNTHESIZED = ('NAME', 'PKNAME', 'zpath', 'MOUNTPOINT', 'TYPE', 'vdev')
+    SYNTHESIZED = ('NAME', 'PKNAME', 'zpath', 'MOUNTPOINT', 'TYPE', 'vdev', 'SIZE')
 
     def __init__(self, ent):
         self.ent = ent
-        self.short_formatter = bytesize.short_formatter()
+        self.short_formatter = bytesize.short_formatter(
+            tolerance=0.025,
+            try_metric=isinstance(self.ent, data.Device),
+        )
 
     def __iter__(self):
         yield from ('display_name', 'location', 'zpath', 'size')
@@ -352,7 +357,7 @@ class Row:
 
     @property
     def size(self):
-        return self.short_formatter(self.ent.bytes * 512)
+        return self.short_formatter(int(self.ent.lsblk['SIZE']))
 
     @property
     def show_fstype(self):
