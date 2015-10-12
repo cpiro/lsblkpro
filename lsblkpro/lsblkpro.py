@@ -148,6 +148,14 @@ class Table:
     def __init__(self, host, args):
         ents = Table.entity_order_for(host, args)
         self.rows = [Row(ent) for ent in ents]
+
+        if args.sorts:
+            self.rows.sort(
+                key=lambda row: tuple(row.sort_value(k) for k in args.sorts),
+                reverse=args.reverse)
+            for row in self.rows:
+                row.indent = False
+
         self.filter_log = []
 
         filter_pairs = list(Table.filters(args))
@@ -165,7 +173,7 @@ class Table:
         for row in self.rows:
             for key in row:
                 col = cols[key]
-                col.update(row)
+                col.update(row) # xxx don't update for non-matching rows
         cols = dict(cols)  # un-defaultdict
 
         def are_duplicates(a, b):
@@ -208,7 +216,7 @@ class Table:
     @staticmethod
     def entity_order_for(host, args):
         """compute entities in row order (each device followed by its partitions)"""
-        for device in host.devices_sorted():
+        for device in host.devices_smart_order():
             yield device
             if args.only_devices:
                 continue
@@ -240,7 +248,6 @@ class Table:
                 raise ValueError("couldn't parse filter expression '{}'".format(expr))
 
     def print_(self):
-        # xxx sorts
         if self.duplicates or self.unique:
             lwidth = max(itertools.chain(
                             (len(a) for a, b in self.duplicates),
@@ -350,6 +357,7 @@ class Row:
             try_metric=isinstance(self.ent, data.Device),
         )
         self.matching = True
+        self.indent = isinstance(self.ent, data.Partition)
 
     def __iter__(self):
         yield from ('display_name', 'location', 'zpath', 'size')
@@ -372,7 +380,7 @@ class Row:
             value = self.by.get(key[3:])
             return value
 
-        raise KeyError("entity '{}' has no key '{}'".format(self.name, key))
+        raise KeyError("entity '{}' has no key '{}'".format(self.ent.name, key))
 
     def __contains__(self, key):
         try:
@@ -386,6 +394,11 @@ class Row:
             return self[key]
         except KeyError:
             return default
+
+    def sort_value(self, key):
+        if key.lower() == 'size':
+            return int(self.ent.lsblk['SIZE'])
+        return self.get(key, '')
 
     @staticmethod
     def comparator_regexp(key, rhs):
@@ -457,10 +470,6 @@ class Row:
     #def show_BY-vdev-if-partition(self): False
 
     @property
-    def indent(self):
-        return isinstance(self.ent, data.Partition)
-
-    @property
     def display_name(self):
         lsblk, by = self.ent.lsblk, self.ent.by
 
@@ -494,9 +503,10 @@ def main():
     parser.add_argument("-e", "--exclude", action='append', dest='exclude', default=[],
                         help="exclude these fields from the output")
     # xxx expose field names that aren't labels
-    # xxx allow 'size' but not 'SIZE' (which is lsblk's string)
     parser.add_argument("-x", "--sort", action='append', dest='sorts', default=[],
-                        help="sort devices by field(s); implies -i")
+                        help="sort entities by field(s); implies --include")
+    parser.add_argument("-r", "--reverse", action='store_true', dest='reverse', default=False,
+                        help="sort in reverse order")
     parser.add_argument("-w", "--where", action='append', dest='filters', default=[],
                         help="filters e.g. NAME=sdc, vdev=a4")
     parser.add_argument("-a", "--all-devices", action='store_true',

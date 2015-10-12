@@ -107,7 +107,7 @@ class Host:
         else:
             raise KeyError()
 
-    def devices_sorted(self):
+    def devices_smart_order(self):
         # smart order
         todo = set(self.devices.keys())
 
