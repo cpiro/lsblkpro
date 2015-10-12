@@ -1,8 +1,8 @@
 #!/usr/bin/env python3.4
 
+# TODO prettier errors
 # TODO attach time
 # TODO package desc should include /sys/block
-# TODO metric and binary sizes. use `lsblk -b` to get size in bytes
 # TODO s.m.a.r.t. support (temp?)
 # TODO optionally trunc [...] long cells when most of column is short
 # TODO -A restarts with `less -S`
@@ -21,6 +21,7 @@ import re
 import argparse
 import collections
 import itertools
+import operator
 
 import struct
 import fcntl
@@ -146,8 +147,14 @@ DUPLICATES = (
 class Table:
     def __init__(self, host, args):
         ents = Table.entity_order_for(host, args)
-        ents, self.filter_log = Table.apply_filters(ents, args)
         self.rows = [Row(ent) for ent in ents]
+        self.filter_log = []
+
+        filter_pairs = list(Table.filters(args))
+        if filter_pairs:
+            filters, self.filter_log = zip(*filter_pairs)
+            for row in self.rows:
+                row.matching = all(f(row) for f in filters)
 
         class DefaultDict(collections.defaultdict):
             def __missing__(self, k):
@@ -212,27 +219,25 @@ class Table:
                 yield part
 
     @staticmethod
-    def apply_filters(ents, args):
-        filter_log = []
-        # xxx allow relative by parsing sizes
-        for f in args.filters:
-            if '=~' in f:
-                lhs, rhs = f.split('=~', 1)
-                filter_log.append("{} matches regexp /{}/".format(lhs, rhs))
-                ents = filter(lambda ent: re.match(rhs, ent._sort_value(lhs), ents))
-            elif '=' in f:
-                lhs, rhs = f.split('=', 1)
-                filter_log.append("{} = {}".format(lhs, rhs))
-                ents = filter(lambda ent: ent._sort_value(lhs) == rhs, ents)
-            elif '!=' in f:
-                lhs, rhs = f.split('!=', 1)
-                filter_log.append("{} != {}".format(lhs, rhs))
-                ents = filter(lambda ent: ent._sort_value(lhs) != rhs, ents)
+    def filters(args):
+        for expr in args.filters:
+            m = re.match(r'^([^ =~><!]*)([ =~><!]*)(.*?)$', expr)
+            if m:
+                lhs, op, rhs = m.groups()
+                op = op.strip()
+                if op == '=~':   yield Row.comparator_regexp(lhs, rhs)
+                elif op == '>=': yield Row.comparator_relative(lhs, operator.ge, op, rhs)
+                elif op == '>':  yield Row.comparator_relative(lhs, operator.gt, op, rhs)
+                elif op == '<=': yield Row.comparator_relative(lhs, operator.le, op, rhs)
+                elif op == '<':  yield Row.comparator_relative(lhs, operator.lt, op, rhs)
+                elif op == '!=': yield Row.comparator_direct(lhs, operator.ne, op, rhs)
+                elif op == '==': yield Row.comparator_direct(lhs, operator.eq, op, rhs)
+                elif op == '=':  yield Row.comparator_direct(lhs, operator.eq, '==', rhs)
+                elif op == '':   yield Row.comparator_direct(lhs, operator.truth, op, rhs)
+                else:
+                    raise ValueError("couldn't parse filter expression '{}'".format(expr))
             else:
-                filter_log.append("{} is set".format(f))
-                ents = filter(lambda ent: ent._sort_value(f), ents)
-
-        return ents, filter_log
+                raise ValueError("couldn't parse filter expression '{}'".format(expr))
 
     def print_(self):
         if self.duplicates or self.unique:
@@ -265,6 +270,7 @@ class Table:
         for ii, row in enumerate(self.rows):
             last = ii+1 == len(self.rows) or self.rows[ii+1].indent == False
             line = ' '.join(col.formatted_cell_for(row, last=last) for col in self.columns)
+            print('\033[0m' if row.matching else '\033[1;30m', end='')
             print(line)
 
 class Column:
@@ -342,6 +348,7 @@ class Row:
             tolerance=0.025,
             try_metric=isinstance(self.ent, data.Device),
         )
+        self.matching = True
 
     def __iter__(self):
         yield from ('display_name', 'location', 'zpath', 'size')
@@ -357,6 +364,62 @@ class Row:
             return True
         except KeyError:
             return False
+
+    def filter_value(self, key):
+        if key.lower() == 'size':
+            return self.size
+
+        try:
+            return self.ent._sort_value(key)
+        except KeyError:
+            return ''
+
+    @staticmethod
+    def comparator_regexp(key, rhs):
+        compare = lambda row: re.match(rhs, row.filter_value(key))
+        return compare, "{} matches regexp /{}/".format(key, rhs)
+
+    @staticmethod
+    def comparator_direct(key, op, op_str, rhs):
+        compare = lambda row: op(row.filter_value(key), rhs)
+        return compare, "{} {} '{}'".format(key, op_str, rhs)
+
+    @staticmethod
+    def comparator_relative(key, op, op_str, rhs):
+        if key.lower() == 'size':
+            # parse given size as integer
+            try:
+                rhs_int = int(rhs)
+                def compare(row):
+                    return op(int(row.ent.lsblk['SIZE']), rhs_int)
+                return compare, "SIZE {} {} bytes".format(op_str, rhs_int)
+            except ValueError:
+                pass
+
+            # parse given size as string with pint/bytesize
+            if bytesize.ureg is None:
+                raise ValueError("can't parse size '{}' without module 'pint'".format(rhs))
+
+            rhs_q = bytesize.ureg(rhs)
+            def compare(row):
+                row_size_q = int(row.ent.lsblk['SIZE']) * bytesize.ureg.bytes
+                return op(row_size_q, rhs_q)
+
+
+            text = "SIZE {} {}".format(op_str, rhs_q)
+            if rhs_q.magnitude > 1:
+                text += 's'
+
+            byte_mag = rhs_q.to('bytes').magnitude
+            if not isinstance(byte_mag, int):
+                if byte_mag.is_integer():
+                    byte_mag = int(byte_mag)
+                text += " ({} bytes)".format(byte_mag)
+
+            return compare, text
+
+        else:
+            raise ValueError("can't compare by key '{}'".format(key))
 
     @property
     def size(self):
