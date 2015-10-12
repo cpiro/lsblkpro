@@ -387,39 +387,41 @@ class Row:
     @staticmethod
     def comparator_relative(key, op, op_str, rhs):
         if key.lower() == 'size':
-            # parse given size as integer
-            try:
-                rhs_int = int(rhs)
-                def compare(row):
-                    return op(int(row.ent.lsblk['SIZE']), rhs_int)
-                return compare, "SIZE {} {} bytes".format(op_str, rhs_int)
-            except ValueError:
-                pass
-
-            # parse given size as string with pint/bytesize
-            if bytesize.ureg is None:
-                raise ValueError("can't parse size '{}' without module 'pint'".format(rhs))
-
-            rhs_q = bytesize.ureg(rhs)
-            def compare(row):
-                row_size_q = int(row.ent.lsblk['SIZE']) * bytesize.ureg.bytes
-                return op(row_size_q, rhs_q)
-
-
-            text = "SIZE {} {}".format(op_str, rhs_q)
-            if rhs_q.magnitude > 1:
-                text += 's'
-
-            byte_mag = rhs_q.to('bytes').magnitude
-            if not isinstance(byte_mag, int):
-                if byte_mag.is_integer():
-                    byte_mag = int(byte_mag)
-                text += " ({} bytes)".format(byte_mag)
-
-            return compare, text
-
+            return Row.comparator_relative_size(op, op_str, rhs)
         else:
             raise ValueError("can't compare by key '{}'".format(key))
+
+    @staticmethod
+    def comparator_relative_size(op, op_str, rhs):
+        # parse given size as integer
+        try:
+            rhs_int = int(rhs)
+            def compare(row):
+                return op(int(row.ent.lsblk['SIZE']), rhs_int)
+            return compare, "SIZE {} {} bytes".format(op_str, rhs_int)
+        except ValueError:
+            pass
+
+        # parse given size as string with pint/bytesize
+        if bytesize.ureg is None:
+            raise ValueError("can't parse size '{}' without module 'pint'".format(rhs))
+
+        rhs_q = bytesize.ureg(rhs)
+        def compare(row):
+            row_size_q = int(row.ent.lsblk['SIZE']) * bytesize.ureg.bytes
+            return op(row_size_q, rhs_q)
+
+        text = "SIZE {} {}".format(op_str, rhs_q)
+        if rhs_q.magnitude > 1:
+            text += 's'
+
+        byte_mag = rhs_q.to('bytes').magnitude
+        if not isinstance(byte_mag, int):
+            if byte_mag.is_integer():
+                byte_mag = int(byte_mag)
+            text += " ({} bytes)".format(byte_mag)
+
+        return compare, text
 
     @property
     def size(self):
