@@ -241,7 +241,7 @@ class Table:
                 elif op == '!=': yield Row.comparator_direct(lhs, operator.ne, op, rhs)
                 elif op == '==': yield Row.comparator_direct(lhs, operator.eq, op, rhs)
                 elif op == '=':  yield Row.comparator_direct(lhs, operator.eq, '==', rhs)
-                elif op == '':   yield Row.comparator_direct(lhs, operator.truth, op, rhs)
+                elif op == '':   yield Row.comparator_direct(lhs, lambda a, b: bool(a), 'is set', None)
                 else:
                     raise ValueError("couldn't parse filter expression '{}'".format(expr))
             else:
@@ -417,7 +417,9 @@ class Row:
         else:
             def compare(row):
                 return op(row.get(key, ''), rhs)
-        return compare, "{} {} '{}'".format(key, op_str, rhs)
+
+        text = "{} {}".format(key, op_str) + (' {}'.format(rhs) if rhs is not None else '')
+        return compare, text
 
     @staticmethod
     def comparator_relative(key, op, op_str, rhs):
