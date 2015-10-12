@@ -208,7 +208,7 @@ class Table:
     @staticmethod
     def entity_order_for(host, args):
         """compute entities in row order (each device followed by its partitions)"""
-        for device in host.devices_sorted(args):
+        for device in host.devices_sorted():
             yield device
             if args.only_devices:
                 continue
@@ -240,6 +240,7 @@ class Table:
                 raise ValueError("couldn't parse filter expression '{}'".format(expr))
 
     def print_(self):
+        # xxx sorts
         if self.duplicates or self.unique:
             lwidth = max(itertools.chain(
                             (len(a) for a, b in self.duplicates),
@@ -355,33 +356,54 @@ class Row:
         yield from self.ent.lsblk.keys()
         yield from self.ent.by.keys()
 
-    def __getitem__(self, label):
-        return self.ent._sort_value(label)
+    def __getitem__(self, key):
+        if key.lower() == 'zpath':
+            return self.zpath
 
-    def __contains__(self, label):
+        value = self.ent.lsblk.get(key.upper())
+        if value:
+            return value
+
+        value = self.ent.by.get(key)
+        if value:
+            return value
+
+        if key.startswith('by-'):
+            value = self.by.get(key[3:])
+            return value
+
+        raise KeyError("entity '{}' has no key '{}'".format(self.name, key))
+
+    def __contains__(self, key):
         try:
-            self.ent._sort_value(label)
+            self[key]
             return True
         except KeyError:
             return False
 
-    def filter_value(self, key):
-        if key.lower() == 'size':
-            return self.size
-
+    def get(self, key, default=None):
         try:
-            return self.ent._sort_value(key)
+            return self[key]
         except KeyError:
-            return ''
+            return default
 
     @staticmethod
     def comparator_regexp(key, rhs):
-        compare = lambda row: re.match(rhs, row.filter_value(key))
+        if key.lower() == 'size':
+            raise ValueError("can't compare size by regexp")
+        def compare(row):
+            value = row.get(key, '')
+            return re.match(rhs, value)
         return compare, "{} matches regexp /{}/".format(key, rhs)
 
     @staticmethod
     def comparator_direct(key, op, op_str, rhs):
-        compare = lambda row: op(row.filter_value(key), rhs)
+        if key.lower() == 'size':
+            def compare(row):
+                return op(row.size, rhs)  # compare to string value as it appears in table
+        else:
+            def compare(row):
+                return op(row.get(key, ''), rhs)
         return compare, "{} {} '{}'".format(key, op_str, rhs)
 
     @staticmethod
