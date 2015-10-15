@@ -157,8 +157,7 @@ class Table:
             self.rows.sort(
                 key=lambda row: tuple(row.sort_value(k) for k in args.sorts),
                 reverse=args.reverse)
-            for row in self.rows:
-                row.indent = False
+            self.recalculate_indentation()
 
         self.filter_log = []
 
@@ -216,6 +215,49 @@ class Table:
                 self.overflow.append(key)
 
         self.columns = [cols[k] for k in sorted(columns, key=lambda k: DISPLAY_ORDER.get(k, INF))]
+
+
+    def recalculate_indentation(self):
+        """Scan the whole table to ensure each device is followed *only* by its partitions
+        If not, remove indent for every row.
+        """
+        class AbortException(Exception):
+            pass
+
+        partition_names_in_table = set(row.ent.name for row in self.rows if isinstance(row.ent, data.Partition))
+
+        try:
+            partitions = None
+            for row in self.rows:
+                if partitions:
+                    if isinstance(row.ent, data.Device):
+                        # saw a device before we'd seen all the previous device's partitions. abort
+                        raise AbortException()
+                    else:
+                        if row.ent.name in partitions:
+                            # good. we saw a partition we expected to see
+                            partitions.discard(row.ent.name)
+                        else:
+                            # bad. we saw a partition from some other device
+                            raise AbortException()
+
+                elif not partitions:
+                    if isinstance(row.ent, data.Device):
+                        # a new device. now expect to see all partitions in
+                        # `partitions` before we see a new Device
+                        partitions = set(part.name for part in row.ent.partitions) & partition_names_in_table
+                    else:
+                        # we saw a partition before its owning device. abort
+                        raise AbortException()
+
+            if partitions:
+                # shit there were some strays leftover. abort
+                raise AbortException()
+
+        except AbortException:
+            # make everything flat
+            for row in self.rows:
+                row.indent = False
 
     @staticmethod
     def entity_order_for(host, args):
