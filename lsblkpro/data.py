@@ -136,7 +136,7 @@ class Host:
     @staticmethod
     def go(args):
         host = Host.from_sysfs(args)
-        results = Host.from_lsblk(args)
+        results = list(Host.from_lsblk(args))
 
         host.missing_from_lsblk = sorted(
             (set(host.devices.keys()) | set(host.partitions.keys()))
@@ -176,23 +176,20 @@ class Host:
             cmd.append('--all')
         cmd.extend(['-P', '-O', '-b'])
         out = subprocess.check_output(cmd)
-        results = []
-        for l in out.decode(CLI_UTILS_ENCODING).splitlines():
-            a = re.findall(r'(.*?)="(.*?)" ?', l)
-            d = {k: v for k, v in a}
-            results.append(d)
-        return results
 
-    def _punch_up_lsblk(self, rows):
-        for row in rows:
-            name = row[PRIMARY_KEY]
+        for l in out.decode(CLI_UTILS_ENCODING).splitlines():
+            yield {k: v for k, v in re.findall(r'(.*?)="(.*?)" ?', l)}
+
+    def _punch_up_lsblk(self, results):
+        for entry in results:
+            name = entry[PRIMARY_KEY]
 
             try:
                 entity = self.entity(name)
             except KeyError:
                 raise RuntimeError("device '{}' in lsblk results not in /sys/block/*/*".format(name))
 
-            entity.lsblk = row
+            entity.lsblk = entry
             assert '{}:{}'.format(entity.major, entity.minor) == entity.lsblk['MAJ:MIN']
             assert entity.name == entity.lsblk[PRIMARY_KEY]
 
