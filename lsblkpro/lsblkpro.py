@@ -14,6 +14,7 @@
 # xxx special grid view
 # xxx strip -0 in zpaths per pool
 # xxx iostat column?
+# TODO document how unit parsing works (metric vs. trad, guessing by adding "B")
 
 import os
 import sys
@@ -443,7 +444,14 @@ class Row:
         if bytesize.ureg is None:
             raise ValueError("can't parse size '{}' without module 'pint'".format(rhs))
 
-        rhs_q = bytesize.ureg(rhs)
+        try:
+            rhs_q = bytesize.ureg(rhs)
+        except bytesize.pint.unit.UndefinedUnitError as exn1:
+            try:
+                rhs_q = bytesize.ureg(rhs + 'B')
+            except bytesize.pint.unit.UndefinedUnitError:
+                raise exn1 from None
+
         def compare(row):
             row_size_q = int(row.ent.lsblk['SIZE']) * bytesize.ureg.bytes
             return op(row_size_q, rhs_q)
@@ -462,7 +470,8 @@ class Row:
 
     @property
     def size(self):
-        return self.short_formatter(int(self.ent.lsblk['SIZE']))
+        sz = int(self.ent.lsblk['SIZE'])
+        return self.short_formatter(sz)
 
     @property
     def show_fstype(self):
