@@ -38,8 +38,11 @@ import bytesize
 INF = float('inf')
 
 def pad_maj_min(text):
-    v = ' ' * (3-text.index(':')) + text
-    return v + ' ' * (7-len(v))
+    try:
+        v = ' ' * (3-text.index(':')) + text
+        return v + ' ' * (7-len(v))
+    except:
+        return text
 
 def terminal_size():
     h, w, hp, wp = struct.unpack('HHHH',
@@ -470,11 +473,14 @@ class Row:
 
     @property
     def size(self):
-        sz = int(self.ent.lsblk['SIZE'])
-        return self.short_formatter(sz)
+        if not self.ent.lsblk.get('SIZE'):
+            return None
+        return self.short_formatter(int(self.ent.lsblk['SIZE']))
 
     @property
     def show_fstype(self):
+        if not self.ent.lsblk:
+            return True
         return self.ent.lsblk['FSTYPE'] not in ('', 'linux_raid_member', 'zfs_member')
 
     #xxx
