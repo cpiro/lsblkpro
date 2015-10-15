@@ -116,7 +116,6 @@ class Host:
             raise KeyError()
 
     def devices_smart_order(self):
-        # smart order
         todo = set(self.devices.keys())
 
         held_by = collections.defaultdict(list)
@@ -129,7 +128,7 @@ class Host:
         holder_groups = [(tuple(group), holder) for holder, group in held_by.items()]
         holder_groups.extend(((device_name,), ()) for device_name in todo)
 
-        for group, holder_name in sorted(holder_groups, key=lambda elt: elt[0][0]):
+        for group, holder_name in sorted(holder_groups, key=lambda elt: Device._sortable_smart_for(elt[0][0])):
             yield from (self.devices[name] for name in group)
             if holder_name:
                 yield self.devices[holder_name]
