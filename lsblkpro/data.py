@@ -43,6 +43,14 @@ class Device(Entity):
 
     @property
     def name_parts(self):
+        return Device.name_parts_for(self.name)
+
+    @property
+    def _sortable_smart(self):
+        return Device._sortable_smart_for(self.name)
+
+    @staticmethod
+    def name_parts_for(name):
         def to_int_maybe(p):
             try:
                 return int(p)
@@ -50,13 +58,13 @@ class Device(Entity):
                 return p
 
         tup = tuple(to_int_maybe(part) for part
-                    in re.findall(r'(?:^[a-z]{2}-?|[a-z]+|\d+)', self.name))
-        assert ''.join(str(part) for part in tup) == self.name
+                    in re.findall(r'(?:^[a-z]{2}-?|[a-z]+|\d+)', name))
+        assert ''.join(str(part) for part in tup) == name
         return tup
 
-    @property
-    def _sortable_smart(self):
-        tup = list(self.name_parts)
+    @staticmethod
+    def _sortable_smart_for(name):
+        tup = list(Device.name_parts_for(name))
         if isinstance(tup[1], str):
             tup[1] = Device.device_letters_to_int(tup[1])
         return tup
@@ -131,7 +139,10 @@ class Host:
         host = Host.from_sysfs(args)
         results = Host.from_lsblk(args)
 
-        host.missing_from_lsblk = (set(host.devices.keys()) | set(host.partitions.keys())) - set(result[PRIMARY_KEY] for result in results)
+        host.missing_from_lsblk = sorted(
+            (set(host.devices.keys()) | set(host.partitions.keys()))
+            - set(result[PRIMARY_KEY] for result in results),
+            key=Device._sortable_smart_for)
 
         host._punch_up_lsblk(results)
         host._punch_up_dev_disk()
