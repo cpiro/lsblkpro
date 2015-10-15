@@ -12,7 +12,7 @@ PRIMARY_KEY = 'NAME'
 class Entity:
     def __init__(self, name):
         self.name = name
-        self.lsblk = None
+        self.lsblk = {}
         self.by = {}
         self.zpath = None
         self.holder_names = None

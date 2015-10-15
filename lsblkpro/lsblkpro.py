@@ -483,6 +483,8 @@ class Row:
     @property
     def display_name(self):
         lsblk, by = self.ent.lsblk, self.ent.by
+        if not lsblk:
+            return self.ent.name
 
         name = lsblk['KNAME']
         if lsblk['NAME'] != name:
