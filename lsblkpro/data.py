@@ -57,8 +57,8 @@ class Device(Entity):
             except ValueError:
                 return p
 
-        tup = tuple(to_int_maybe(part) for part
-                    in re.findall(r'(?:^[a-z]{2}-?|[a-z]+|\d+)', name))
+        # https://www.kernel.org/doc/Documentation/devices.txt
+        tup = tuple(to_int_maybe(part) for part in re.findall(r'(?:^(?:ram|fd|hd|loop|sd|n?st|md|scd|n?tpqic|xd|sonycd|gscd|optcd|sjcd|c?double|hitcd|sg|mfm|hd|mcd|cdu535|sbpcd|qft|nqft|zqft|nzqft|rawqft|nrawqft|ad|aztcd|cm205cd|r?rom|r?flash|cm206cd|slram|n?ht|z2ram|nb|ft|pd|pcd|pf|r?pda|sch|mtdr?|ppdd|nft|dasd|n?pt|inft|pg|ubd|jsfd|nnpfs|ub|xvd|n?osst|rfd|ssfdc|blockrom|osd)|^[a-z]-?|[a-z]+|\d+)', name))
         assert ''.join(str(part) for part in tup) == name
         return tup
 
