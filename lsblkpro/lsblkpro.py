@@ -1,21 +1,5 @@
 #!/usr/bin/env python3.4
 
-# TODO prettier errors
-# TODO attach time
-# TODO package desc should include /sys/block
-# TODO s.m.a.r.t. support (temp?)
-# TODO optionally trunc [...] long cells when most of column is short
-# TODO -A restarts with `less -S`
-# TODO show and highlight misalignment, smart, other warning signs
-# TODO deal with resilvering
-# TODO sort by everything, esp vdev
-
-# 3to2
-# xxx special grid view
-# xxx strip -0 in zpaths per pool
-# xxx iostat column?
-# TODO document how unit parsing works (metric vs. trad, guessing by adding "B")
-
 import os
 import sys
 import re

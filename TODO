@@ -1,0 +1,14 @@
+3to2
+package desc should include /sys/block
+prettier errors
+-A restarts with `less -S`
+sort by everything, esp vdev
+document how unit parsing works (metric vs. trad, guessing by adding "B")
+optionally trunc [...] long cells when most of column is short
+show and highlight misalignment, smart, other warning signs
+deal with resilvering
+strip -0 in zpaths per pool
+iostat column?
+attach time
+s.m.a.r.t. support (temp?)
+special grid view
