@@ -1,3 +1,5 @@
+# coding=utf-8
+
 from __future__ import print_function
 from __future__ import unicode_literals
 from __future__ import division
@@ -403,9 +405,14 @@ class Row(object):
         self.indent = isinstance(self.ent, data.Partition)
 
     def __iter__(self):
-        yield from ('display_name', 'location', 'zpath', 'size')
-        yield from self.ent.lsblk.keys()
-        yield from self.ent.by.keys()
+        yield 'display_name'
+        yield 'location'
+        yield 'zpath'
+        yield 'size'
+        for yy in self.ent.lsblk.keys():
+            yield yy
+        for yy in self.ent.by.keys():
+            yield yy
 
     def __getitem__(self, key):
         if key.lower() == 'zpath':
@@ -489,10 +496,13 @@ class Row(object):
         try:
             rhs_q = bytesize.ureg(rhs)
         except bytesize.pint.unit.UndefinedUnitError as exn1:
+            rhs_q = None
             try:
                 rhs_q = bytesize.ureg(rhs + 'B')
             except bytesize.pint.unit.UndefinedUnitError:
-                raise exn1 from None
+                pass
+            if rhs_q is None:
+                raise exn1
 
         def compare(row):
             row_size_q = int(row.ent.lsblk['SIZE']) * bytesize.ureg.bytes

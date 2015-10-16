@@ -141,7 +141,8 @@ class Host(object):
         holder_groups.extend(((device_name,), ()) for device_name in todo)
 
         for group, holder_name in sorted(holder_groups, key=lambda elt: Device._sortable_smart_for(elt[0][0])):
-            yield from (self.devices[name] for name in group)
+            for name in group:
+                yield self.devices[name]
             if holder_name:
                 yield self.devices[holder_name]
 
@@ -169,7 +170,7 @@ class Host(object):
 
         def device_names():
             for entry in os.listdir(os.path.join('/sys', 'block')):
-                if args.all_devices or not re.fullmatch(r'(?:ram\d+|loop\d+)', entry):
+                if args.all_devices or not re.match(r'^(?:ram\d+|loop\d+)$', entry):
                     yield entry
 
         for dev_name in device_names():
