@@ -1,3 +1,15 @@
+from __future__ import print_function
+from __future__ import unicode_literals
+from __future__ import division
+from __future__ import absolute_import
+from builtins import open
+from builtins import super
+from builtins import str
+from builtins import int
+from future import standard_library
+standard_library.install_aliases()
+from builtins import object
+
 import os
 import sys
 import re
@@ -9,7 +21,7 @@ import collections
 CLI_UTILS_ENCODING = sys.stdout.encoding
 PRIMARY_KEY = 'NAME'
 
-class Entity:
+class Entity(object):
     def __init__(self, name):
         self.name = name
         self.lsblk = {}
@@ -97,7 +109,7 @@ class Partition(Entity):
                 part.major, part.minor = parse_maj_min(read_sysfs(path, entry))
         return part
 
-class Host:
+class Host(object):
     def __init__(self):
         self.devices = None
         self.partitions = None

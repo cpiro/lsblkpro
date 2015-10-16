@@ -1,3 +1,17 @@
+from __future__ import print_function
+from __future__ import unicode_literals
+from __future__ import division
+from __future__ import absolute_import
+from builtins import open
+from builtins import dict
+from builtins import zip
+from builtins import str
+from builtins import filter
+from builtins import int
+from future import standard_library
+standard_library.install_aliases()
+from builtins import object
+
 import os
 import sys
 import re
@@ -130,7 +144,7 @@ DUPLICATES = (
     ('partlabel', 'PARTLABEL'),
 )
 
-class Table:
+class Table(object):
     def __init__(self, host, args):
         ents = Table.entity_order_for(host, args)
         self.rows = [Row(ent) for ent in ents]
@@ -309,7 +323,7 @@ class Table:
             print('\033[0m' if row.matching else '\033[1;30m', end='')
             print(line)
 
-class Column:
+class Column(object):
     def __init__(self, key):
         self.key = key
         self.width = len(self.header_cell)
@@ -350,7 +364,8 @@ class Column:
         else:
             return ''
 
-    def formatted_cell_for(self, row, *, last): # row=None means header
+    def formatted_cell_for(self, row, **_3to2kwargs): # row=None means header
+        last = _3to2kwargs['last']; del _3to2kwargs['last']
         if row is None:
             text = self.header_cell
         else:
@@ -375,7 +390,7 @@ class Column:
 
         return "{0:{fmt}}".format(text, fmt=fmt)
 
-class Row:
+class Row(object):
     SYNTHESIZED = ('NAME', 'PKNAME', 'zpath', 'MOUNTPOINT', 'TYPE', 'vdev', 'SIZE')
 
     def __init__(self, ent):
