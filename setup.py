@@ -11,6 +11,7 @@ setup(
     version = '0',
     packages = find_packages(),
     install_requires = [
+        'future>=0.15.2',
         'bytesize>=0',
         'pint>=0.6',
     ],
