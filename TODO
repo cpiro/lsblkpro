@@ -1,4 +1,5 @@
-package desc should include /sys/block
+coveralls? ci? virtualenv testing?
+
 prettier errors
 -A restarts with `less -S`
 sort by everything, esp vdev
