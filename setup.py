@@ -20,6 +20,6 @@ setup(
     author_email = "cpiro@cpiro.com",
     description = "adds ZFS zpool and vdev information, filtering, and sorting, to lsblk(8)",
     license = "GPL",
-    keywords = "lsblk zfs zpool console",
+    keywords = ['lsblk', 'zfs', 'zpool', 'console'],
     url = "https://github.com/cpiro/lsblkpro",
 )
