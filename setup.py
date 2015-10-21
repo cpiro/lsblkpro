@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 setup(
     name = 'lsblkpro',
     version = '0',
-    packages = find_packages(),
+    packages = ['lsblkpro'],
     install_requires = [
         'future>=0.15.2',
         'bytesize>=0',
