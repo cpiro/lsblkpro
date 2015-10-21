@@ -22,4 +22,5 @@ setup(
     license = "GPL",
     keywords = ['lsblk', 'zfs', 'zpool', 'console'],
     url = "https://github.com/cpiro/lsblkpro",
+    bugtrack_url = "https://github.com/cpiro/lsblkpro/issues",
 )
