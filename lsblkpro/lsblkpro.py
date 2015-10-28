@@ -15,14 +15,22 @@ import struct
 import fcntl
 import termios
 
-import pprint
-pp = pprint.pprint
-
 from . import data
 
 import bytesize
 
 INF = float('inf')
+BYTES_FORMATTER = None
+
+def bytes_formatter_for(separator=','):
+    assert isinstance(separator, str)
+    def inner(value):
+        bk = ''.join(reversed(str(value)))
+        parts = re.findall(r'.{1,3}', bk)
+        result = separator.join(''.join(reversed(part)) for part in reversed(parts))
+        assert ''.join(filter(lambda c: c != separator, result)) == str(value)
+        return result
+    return inner
 
 def pad_maj_min(text):
     try:
@@ -386,12 +394,13 @@ class Row(object):
 
     def __init__(self, ent):
         self.ent = ent
-        self.short_formatter = bytesize.short_formatter(
-            tolerance=0.025,
-            try_metric=isinstance(self.ent, data.Device),
-        )
         self.matching = True
         self.indent = isinstance(self.ent, data.Partition)
+        self.size_formatter = (
+            BYTES_FORMATTER or
+            bytesize.short_formatter(
+                tolerance=0.025,
+                try_metric=isinstance(self.ent, data.Device)))
 
     def __iter__(self):
         yield 'display_name'
@@ -513,7 +522,7 @@ class Row(object):
     def size(self):
         if not self.ent.lsblk.get('SIZE'):
             return None
-        return self.short_formatter(int(self.ent.lsblk['SIZE']))
+        return self.size_formatter(int(self.ent.lsblk['SIZE']))
 
     @property
     def show_fstype(self):
@@ -553,6 +562,8 @@ class Row(object):
 def main():
     # argparse
     parser = argparse.ArgumentParser()
+    parser.add_argument("-b", "--bytes", default=None, nargs='?', type=str, metavar='CHAR', const='',
+                        help="show device capacities in bytes, optionally separated by CHAR")
     parser.add_argument("-d", "--only-devices", action='store_true',
                         help="show only devices (not partitions)")
     parser.add_argument("-i", "--include", action='append', dest='include', default=[],
@@ -600,6 +611,11 @@ def main():
         # xxx if output is not a tty then be sure not to limit width
         except Exception:
             args.width_limit = INF
+
+
+    if args.bytes is not None:
+        global BYTES_FORMATTER
+        BYTES_FORMATTER = bytes_formatter_for(separator=args.bytes)
 
     # data
     if args.load_data:
