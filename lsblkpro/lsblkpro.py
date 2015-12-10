@@ -396,11 +396,14 @@ class Row(object):
         self.ent = ent
         self.matching = True
         self.indent = isinstance(self.ent, data.Partition)
-        self.size_formatter = (
-            BYTES_FORMATTER or
-            bytesize.short_formatter(
-                tolerance=0.025,
-                try_metric=isinstance(self.ent, data.Device)))
+
+        # always use binary for partitions, but guess base for devices
+        if BYTES_FORMATTER:
+            self.size_formatter = BYTES_FORMATTER
+        elif isinstance(self.ent, data.Partition):
+            self.size_formatter = bytesize.short_formatter(base=1024)
+        else:
+            self.size_formatter = bytesize.short_formatter(tolerance=0.025)
 
     def __iter__(self):
         yield 'display_name'
