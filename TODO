@@ -1,6 +1,7 @@
 coveralls? ci? virtualenv testing?
 readme
 
+distinguish OFFLINE and REPLACING and ONLINE
 prettier errors
 -A restarts with `less -S`
 sort by everything, esp vdev
