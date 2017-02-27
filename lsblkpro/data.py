@@ -54,6 +54,10 @@ class Device(Entity):
 
     @staticmethod
     def name_parts_for(name):
+        #XXX
+        #if name.startswith('dm-'):
+        #    return name
+
         def to_int_maybe(p):
             try:
                 return int(p)
@@ -61,7 +65,7 @@ class Device(Entity):
                 return p
 
         # https://www.kernel.org/doc/Documentation/devices.txt
-        tup = tuple(to_int_maybe(part) for part in re.findall(r'(?:^(?:zd|ram|fd|hd|loop|sd|n?st|md|scd|n?tpqic|xd|sonycd|gscd|optcd|sjcd|c?double|hitcd|sg|mfm|hd|mcd|cdu535|sbpcd|qft|nqft|zqft|nzqft|rawqft|nrawqft|ad|aztcd|cm205cd|r?rom|r?flash|cm206cd|slram|n?ht|z2ram|nb|ft|pd|pcd|pf|r?pda|sch|mtdr?|ppdd|nft|dasd|n?pt|inft|pg|ubd|jsfd|nnpfs|ub|xvd|n?osst|rfd|ssfdc|blockrom|osd)|^[a-z]-?|[a-z]+|\d+)', name))
+        tup = tuple(to_int_maybe(part) for part in re.findall(r'(?:^(?:dm-|zd|ram|fd|hd|loop|sd|n?st|md|scd|n?tpqic|xd|sonycd|gscd|optcd|sjcd|c?double|hitcd|sg|mfm|hd|mcd|cdu535|sbpcd|qft|nqft|zqft|nzqft|rawqft|nrawqft|ad|aztcd|cm205cd|r?rom|r?flash|cm206cd|slram|n?ht|z2ram|nb|ft|pd|pcd|pf|r?pda|sch|mtdr?|ppdd|nft|dasd|n?pt|inft|pg|ubd|jsfd|nnpfs|ub|xvd|n?osst|rfd|ssfdc|blockrom|osd)|^[a-z]-?|[a-z]+|\d+)', name))
         assert ''.join(str(part) for part in tup) == name
         return tup
 
@@ -191,7 +195,8 @@ class Host(object):
             try:
                 entity = self.entity(name)
             except KeyError:
-                raise RuntimeError("device '{}' in lsblk results not in /sys/block/*/*".format(name))
+                print("warning: device '{}' in lsblk results not in /sys/block/*/*".format(name))
+                continue
 
             entity.lsblk = entry
             assert '{}:{}'.format(entity.major, entity.minor) == entity.lsblk['MAJ:MIN']
@@ -212,7 +217,10 @@ class Host(object):
                 if kind == 'by-partuuid':
                     assert entity.lsblk['PARTUUID'] == entry
                 elif kind == 'by-uuid':
-                    assert entity.lsblk['UUID'] == entry
+                    if 'UUID' in entity.lsblk:
+                        assert entity.lsblk['UUID'] == entry
+                    else:
+                        print("warning: incomplete lsblk for {}: {}".format(entity.name, entity.lsblk))
                 else:
                     assert kind.startswith('by-')
                     entity.by[kind[3:]] = entry
