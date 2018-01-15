@@ -261,7 +261,7 @@ class Table(object):
             yield device
             if args.only_devices:
                 continue
-            if (device.by.get('vdev') or device.zpath) and not args.all_devices:
+            if device.zpath and not args.all_devices:
                 continue
             for part in device.partitions:
                 assert part.lsblk['PKNAME'] == device.name
