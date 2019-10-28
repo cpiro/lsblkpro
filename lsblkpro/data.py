@@ -148,14 +148,25 @@ class Host(object):
 
         sysfs_items = set(host.devices.keys()) | set(host.partitions.keys())
         lsblk_items = set(result[PRIMARY_KEY] for result in results)
-        host.missing_from_lsblk = sorted(sysfs_items - lsblk_items, key=Device._sortable_smart_for)
-
-        host.devices = {kk: vv for (kk, vv) in host.devices.items() if kk in lsblk_items}
-        host.partitions = {kk: vv for (kk, vv) in host.partitions.items() if kk in lsblk_items}
 
         host._punch_up_lsblk(results)
         host._punch_up_dev_disk()
         host._punch_up_zpool_status()
+
+        if args.all_devices:
+            excluded = set()
+        else:
+            rams = set(kk for kk in host.devices.keys() if re.match(r'^ram\d+$', kk))
+            loops = set(kk for kk in host.devices.keys() if re.match(r'^loop\d+$', kk))
+            mounted_nonsnap_loops = set(
+                kk for kk in loops if
+                host.devices[kk].lsblk and
+                not host.devices[kk].lsblk['MOUNTPOINT'].startswith('/snap'))
+            excluded = rams | (loops - mounted_nonsnap_loops)
+
+        host.devices = {kk: vv for (kk, vv) in host.devices.items() if kk in lsblk_items and kk not in excluded}
+        host.partitions = {kk: vv for (kk, vv) in host.partitions.items() if kk in lsblk_items and kk not in excluded}
+        host.missing_from_lsblk = sorted(sysfs_items - lsblk_items - excluded, key=Device._sortable_smart_for)
 
         return host
 
@@ -165,12 +176,7 @@ class Host(object):
         host.devices = {}
         host.partitions = {}
 
-        def device_names():
-            for entry in os.listdir(os.path.join('/sys', 'block')):
-                if args.all_devices or not re.match(r'^(?:ram\d+|loop\d+)$', entry):
-                    yield entry
-
-        for dev_name in device_names():
+        for dev_name in os.listdir(os.path.join('/sys', 'block')):
             dev = Device.from_sysfs(dev_name)
             host.devices[dev.name] = dev
 
