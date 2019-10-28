@@ -146,10 +146,9 @@ class Host(object):
         host = Host.from_sysfs(args)
         results = list(Host.from_lsblk(args))
 
-        host.missing_from_lsblk = sorted(
-            (set(host.devices.keys()) | set(host.partitions.keys()))
-            - set(result[PRIMARY_KEY] for result in results),
-            key=Device._sortable_smart_for)
+        sysfs_items = set(host.devices.keys()) | set(host.partitions.keys())
+        lsblk_items = set(result[PRIMARY_KEY] for result in results)
+        host.missing_from_lsblk = sorted(sysfs_items - lsblk_items, key=Device._sortable_smart_for)
 
         host._punch_up_lsblk(results)
         host._punch_up_dev_disk()
