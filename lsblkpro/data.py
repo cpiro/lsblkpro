@@ -150,6 +150,9 @@ class Host(object):
         lsblk_items = set(result[PRIMARY_KEY] for result in results)
         host.missing_from_lsblk = sorted(sysfs_items - lsblk_items, key=Device._sortable_smart_for)
 
+        host.devices = {kk: vv for (kk, vv) in host.devices.items() if kk in lsblk_items}
+        host.partitions = {kk: vv for (kk, vv) in host.partitions.items() if kk in lsblk_items}
+
         host._punch_up_lsblk(results)
         host._punch_up_dev_disk()
         host._punch_up_zpool_status()
