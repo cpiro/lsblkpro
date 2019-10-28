@@ -41,7 +41,7 @@ class Device(Entity):
                 dev.major, dev.minor = parse_maj_min(read_sysfs(path, entry))
 
         dev.partitions = [Partition.from_sysfs(part_name, dev)
-                          for part_name in partition_names]
+                          for part_name in sorted(partition_names)]
         return dev
 
     @property
