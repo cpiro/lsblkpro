@@ -576,6 +576,8 @@ def main():
     # xxx expose field names that aren't labels
     parser.add_argument("-x", "--sort", action='append', dest='sorts', default=[],
                         help="sort entities by field(s); implies --include")
+    parser.add_argument("-z", "--zfs", action='append_const', dest='sorts', const='vdev',
+                        help="short for '--sort vdev'")
     parser.add_argument("-r", "--reverse", action='store_true', dest='reverse', default=False,
                         help="sort in reverse order")
     parser.add_argument("-w", "--where", action='append', dest='filters', default=[],
